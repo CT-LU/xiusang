@@ -21,6 +21,9 @@ header small { color: #b9c4d6; }
 header .ja, header .ja-title { color: #b9c4d6; }
 .api-box { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .api-box label { font-size: 0.85em; text-align: right; }
+.api-hint { font-size: 0.8em; color: #ffd666; text-decoration: underline; text-align: right; }
+.api-hint:hover { color: #ffe9b3; }
+.api-hint .ja { color: #e8c979; display: block; }
 .api-box input { padding: 6px 8px; border: none; border-radius: 4px; width: 180px; }
 .api-box button { padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; background: #3d5a8f; color: #fff; }
 .api-box button .ja { color: #b9c4d6; }
