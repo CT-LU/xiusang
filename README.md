@@ -34,7 +34,7 @@
 
 ### 電話・總房數自動同步
 
-設定 applicationId 後，按結果表右上的「楽天で電話・室数を同期」：透過楽天施設情報API（HotelDetailSearch）逐家取得官方 `telephoneNo` 與 `hotelRoomNum` 並覆寫估計值（節流 1.1s/請求，全部約 15 秒，結果快取於 localStorage）。已同步的欄位顯示 ✓，未同步顯示 ※。
+首次「保存・テスト」applicationId 成功後會自動執行：透過楽天施設情報API（HotelDetailSearch）逐家取得官方 `telephoneNo` 與 `hotelRoomNum` 並覆寫估計值（節流 1.1s/請求，全部約 25 秒，結果快取於 localStorage，之後不再重跑）。已同步的欄位顯示 ✓，未同步顯示 ※。
 
 ## ⚠ 重要注意事項
 

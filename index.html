@@ -95,11 +95,7 @@
 <section id="validation" class="validation-band"></section>
 
 <section class="panel table-panel">
-  <h2>配分結果 <span class="ja">分配結果</span>
-    <button type="button" id="syncBtn" class="sync-btn" title="楽天施設情報APIで各ホテルの電話番号・総客室数を取得して上書きします">
-      楽天で電話・室数を同期 <span class="ja">用楽天官方資料同步電話・房數</span>
-    </button>
-  </h2>
+  <h2>配分結果 <span class="ja">分配結果</span></h2>
   <div class="table-scroll">
     <table id="resultTable">
       <thead>
@@ -126,8 +122,8 @@
   <p class="footnote">
     ※ 「T+分」は配車開始時刻（T）からの経過分です。T+0＝第一波で同時発車、T+45＝バスが前便から戻り次第45分後に発車。「最終便帰着」も T 起点の推定です。<br>
     <span class="ja">※ 「T+分」＝從開始發車時刻（T）起算的分鐘數。T+0＝第一波同時發車；T+45＝巴士跑完前一趟回來後、開始後45分鐘發車。「最終班回程」同樣以 T 起算。</span><br>
-    ※ 室数・電話番号は初期状態では推定値（※印）です。applicationId 設定後「楽天で同期」を押すと公式データに更新されます（✓印）。可用室数（徴用可能数）だけは運用判断のため手動調整してください。オンライン空室は電話で確保できる室数より大幅に少ないため参考値です。<br>
-    <span class="ja">※ 房數與電話初始為估計值（※），設定 applicationId 後按「同步」即更新為楽天官方資料（✓）。唯「可用房數」（可徵用數）屬營運判斷，請手動調整。線上空房遠低於電話可徵用數，僅供參考。</span>
+    ※ 室数・電話番号は初期状態では推定値（※印）です。applicationId を保存・テストすると自動で楽天公式データに更新されます（✓印）。可用室数（徴用可能数）だけは運用判断のため手動調整してください。オンライン空室は電話で確保できる室数より大幅に少ないため参考値です。<br>
+    <span class="ja">※ 房數與電話初始為估計值（※），儲存並測試 applicationId 後會自動更新為楽天官方資料（✓）。唯「可用房數」（可徵用數）屬營運判斷，請手動調整。線上空房遠低於電話可徵用數，僅供參考。</span>
   </p>
 </section>
 

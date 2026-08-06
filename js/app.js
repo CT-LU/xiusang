@@ -47,19 +47,16 @@
 
   async function syncFacts() {
     if (!RakutenAPI.getAppId()) { setStatus("offline", I18N.t("api-no-key")); return; }
-    const btn = $("syncBtn");
-    btn.disabled = true;
     try {
       await RakutenAPI.resolveHotelNos(HOTELS);
       const n = await RakutenAPI.syncHotelFacts(HOTELS, (done, total) =>
         setStatus("probing", I18N.t("sync-progress", { done, total })));
       applyFacts();
       setStatus("ok", I18N.t("sync-done", { n }));
-      calculate();
+      if (lastResult) calculate(); else refreshSelection();
     } catch (e) {
       setStatus("fail", I18N.t("api-fail", { msg: e.message }));
     }
-    btn.disabled = false;
   }
 
   // ---------- 入力 ----------
@@ -361,6 +358,8 @@
     try {
       const ok = await RakutenAPI.testKey();
       setStatus(ok ? "ok" : "fail", ok ? I18N.t("api-ok") : I18N.t("api-fail", { msg: "no data" }));
+      // key 有効かつ未同期なら、電話・総室数を自動で公式データに更新
+      if (ok && Object.keys(RakutenAPI.getFacts()).length === 0) await syncFacts();
     } catch (e) {
       setStatus("fail", I18N.t("api-fail", { msg: e.message }));
     }
@@ -377,7 +376,6 @@
     $("calcBtn").addEventListener("click", calculate);
     $("printBtn").addEventListener("click", () => window.print());
     $("saveKeyBtn").addEventListener("click", testApiKey);
-    $("syncBtn").addEventListener("click", syncFacts);
     $("rangeZone").addEventListener("change", refreshSelection);
     $("autoExpand").addEventListener("change", () => { if (lastResult) calculate(); });
     $("inputForm").addEventListener("submit", e => { e.preventDefault(); calculate(); });
