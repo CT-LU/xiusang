@@ -40,6 +40,7 @@ header .ja, header .ja-title { color: #b9c4d6; }
 main {
   display: grid; grid-template-columns: 300px 1fr; gap: 12px;
   padding: 12px 16px 0;
+  align-items: start;
 }
 .panel { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
 .form-panel { padding: 14px; }
@@ -78,8 +79,15 @@ button.primary .ja { color: #f5c6c5; }
 .popup-toggle.include { background: #188038; color: #fff; border-color: #188038; }
 .dim-text { color: #9aa0a6; }
 
-.map-panel { display: flex; flex-direction: column; min-height: 440px; }
-#map { flex: 1; min-height: 400px; border-radius: 8px 8px 0 0; }
+.map-panel { display: flex; flex-direction: column; }
+.map-bar { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; }
+.map-bar-title { font-weight: bold; font-size: 0.95em; }
+.map-bar-title .ja { display: inline; margin-left: 4px; }
+#mapToggle { padding: 4px 12px; border: 1px solid #dadce0; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.85em; }
+#mapToggle:hover { background: #f1f3f4; }
+#mapToggle .ja { display: inline; margin-left: 4px; color: #5f6368; }
+#map { height: 260px; }
+.map-panel.collapsed #map, .map-panel.collapsed .legend { display: none; }
 .map-unavailable { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #5f6368; }
 .legend { display: flex; gap: 16px; flex-wrap: wrap; padding: 8px 12px; font-size: 0.85em; }
 .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; margin-right: 4px; }
@@ -118,7 +126,7 @@ button.primary .ja { color: #f5c6c5; }
 /* ============ 平板直立（現場運用） ============ */
 @media (max-width: 900px) {
   main { grid-template-columns: 1fr; }
-  .map-panel { min-height: 320px; }
+  #map { height: 240px; }
   header { flex-direction: column; align-items: flex-start; }
 }
 

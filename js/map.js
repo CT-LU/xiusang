@@ -105,5 +105,8 @@ const MapView = (() => {
     }
   }
 
-  return { init, update };
+  /** 収合→展開後にタイルレイアウトを再計算（Leaflet はコンテナサイズ変化を自動検知しない） */
+  function invalidate() { if (available()) setTimeout(() => map.invalidateSize(), 50); }
+
+  return { init, update, invalidate };
 })();

@@ -373,6 +373,22 @@
     setStatus(RakutenAPI.getAppId() ? "idle" : "offline",
       RakutenAPI.getAppId() ? null : I18N.t("api-no-key"));
 
+    // 地図の収合/展開（状態は localStorage に保存）
+    const LS_MAP = "narita.mapCollapsed";
+    const applyMapState = collapsed => {
+      $("mapPanel").classList.toggle("collapsed", collapsed);
+      $("mapToggle").innerHTML = collapsed
+        ? '地図を表示 ▼ <span class="ja">展開地圖</span>'
+        : '地図を隠す ▲ <span class="ja">收合地圖</span>';
+      if (!collapsed) MapView.invalidate();
+    };
+    applyMapState(localStorage.getItem(LS_MAP) === "1");
+    $("mapToggle").addEventListener("click", () => {
+      const collapsed = !$("mapPanel").classList.contains("collapsed");
+      try { localStorage.setItem(LS_MAP, collapsed ? "1" : "0"); } catch (e) { /* ignore */ }
+      applyMapState(collapsed);
+    });
+
     $("calcBtn").addEventListener("click", calculate);
     $("printBtn").addEventListener("click", () => window.print());
     $("saveKeyBtn").addEventListener("click", testApiKey);

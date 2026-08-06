@@ -6,7 +6,7 @@
 <title>成田空港 欠航時ホテル・バス手配 | 成田機場停飛住宿分配</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<link rel="stylesheet" href="css/style.css?v=20260806c">
+<link rel="stylesheet" href="css/style.css?v=20260806d">
 </head>
 <body>
 
@@ -83,7 +83,11 @@
     </div>
   </aside>
 
-  <section class="panel map-panel">
+  <section class="panel map-panel" id="mapPanel">
+    <div class="map-bar">
+      <span class="map-bar-title">地図 <span class="ja">地圖</span></span>
+      <button type="button" id="mapToggle">地図を隠す ▲ <span class="ja">收合地圖</span></button>
+    </div>
     <div id="map"></div>
     <div class="legend">
       <span><i class="dot green"></i>充足 / 十分</span>
@@ -135,11 +139,11 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="js/hotels-data.js?v=20260806c"></script>
-<script src="js/i18n.js?v=20260806c"></script>
-<script src="js/allocator.js?v=20260806c"></script>
-<script src="js/rakuten-api.js?v=20260806c"></script>
-<script src="js/map.js?v=20260806c"></script>
-<script src="js/app.js?v=20260806c"></script>
+<script src="js/hotels-data.js?v=20260806d"></script>
+<script src="js/i18n.js?v=20260806d"></script>
+<script src="js/allocator.js?v=20260806d"></script>
+<script src="js/rakuten-api.js?v=20260806d"></script>
+<script src="js/map.js?v=20260806d"></script>
+<script src="js/app.js?v=20260806d"></script>
 </body>
 </html>
