@@ -27,6 +27,34 @@
       }));
   }
 
+  /** 楽天同期済みの電話・総室数キャッシュを静的データに反映 */
+  function applyFacts() {
+    const facts = RakutenAPI.getFacts();
+    for (const h of HOTELS) {
+      const f = facts[h.id];
+      if (!f) continue;
+      if (f.phone) { h.phone = f.phone; h.phoneVerified = true; }
+      if (f.rooms) { h.totalRooms = f.rooms; h.roomsVerified = true; }
+    }
+  }
+
+  async function syncFacts() {
+    if (!RakutenAPI.getAppId()) { setStatus("offline", I18N.t("api-no-key")); return; }
+    const btn = $("syncBtn");
+    btn.disabled = true;
+    try {
+      await RakutenAPI.resolveHotelNos(HOTELS);
+      const n = await RakutenAPI.syncHotelFacts(HOTELS, (done, total) =>
+        setStatus("probing", I18N.t("sync-progress", { done, total })));
+      applyFacts();
+      setStatus("ok", I18N.t("sync-done", { n }));
+      calculate();
+    } catch (e) {
+      setStatus("fail", I18N.t("api-fail", { msg: e.message }));
+    }
+    btn.disabled = false;
+  }
+
   // ---------- 入力 ----------
   function readInput() {
     const num = (id, def) => {
@@ -90,7 +118,7 @@
                      (isExcluded ? "excluded " : "") +
                      (asg && asg.totalPax === 0 ? "zero " : "");
       tr.innerHTML = `
-        <td class="hotel-name">${h.nameJa}<br><small>${h.driveMinutes}分・tier${h.tier}${h.crewDesignated ? "・乗務員指定" : ""}</small></td>
+        <td class="hotel-name">${h.nameJa}<br><small>${h.driveMinutes}分・tier${h.tier}・全${h.totalRooms}室${h.roomsVerified ? "✓" : "※"}${h.crewDesignated ? "・乗務員指定" : ""}</small></td>
         <td>${b ? b.crew.pax : "—"}</td>
         <td>${b ? b.premium.pax : "—"}</td>
         <td>${b ? `${b.family.groups}組/${b.family.pax}名` : "—"}</td>
@@ -100,7 +128,7 @@
         <td class="vac-cell">${vac.zh}<br><small>${vac.ja}</small>${asg && asg.needsPhoneConfirm ? '<br><span class="warn-text">⚠ 要電話</span>' : ""}</td>
         <td>${asg && asg.busCount ? asg.busCount + "台" : "—"}</td>
         <td class="batches">${asg ? batchesText(asg) : ""}</td>
-        <td><a href="tel:${h.phone}">${h.phone}</a><br><small>※要確認</small></td>
+        <td><a href="tel:${h.phone}">${h.phone}</a><br><small>${h.phoneVerified ? "✓楽天" : "※要確認"}</small></td>
         <td><input type="number" class="ov-rooms" data-id="${h.id}" min="0" value="${(ov[h.id] && ov[h.id].usableRooms !== undefined) ? ov[h.id].usableRooms : h.usableRooms}"></td>
         <td><input type="checkbox" class="ov-exclude" data-id="${h.id}" ${isExcluded ? "checked" : ""}></td>`;
       return tr;
@@ -234,6 +262,7 @@
   }
 
   document.addEventListener("DOMContentLoaded", () => {
+    applyFacts();
     initForm();
     MapView.init();
     setStatus(RakutenAPI.getAppId() ? "idle" : "offline",
@@ -242,6 +271,7 @@
     $("calcBtn").addEventListener("click", calculate);
     $("printBtn").addEventListener("click", () => window.print());
     $("saveKeyBtn").addEventListener("click", testApiKey);
+    $("syncBtn").addEventListener("click", syncFacts);
     $("inputForm").addEventListener("submit", e => { e.preventDefault(); calculate(); });
 
     if (new URLSearchParams(location.search).get("selftest") === "1") {

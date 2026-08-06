@@ -10,8 +10,10 @@ const RakutenAPI = (() => {
   const BASE = "https://app.rakuten.co.jp/services/api/Travel";
   const VACANT = `${BASE}/VacantHotelSearch/20170426`;
   const SIMPLE = `${BASE}/SimpleHotelSearch/20170426`;
+  const DETAIL = `${BASE}/HotelDetailSearch/20170426`;
   const LS_APP_ID = "narita.rakutenAppId";
   const LS_HOTEL_NOS = "narita.rakutenHotelNos.v1";
+  const LS_FACTS = "narita.hotelFacts.v1";
   const GAP_MS = 1100;
   const TIMEOUT_MS = 10000;
 
@@ -183,5 +185,58 @@ const RakutenAPI = (() => {
     return tiers;
   }
 
-  return { getAppId, setAppId, testKey, resolveHotelNos, probeVacancy };
+  // ---------- 施設情報同期（電話・総室数を楽天公式データで更新） ----------
+
+  function getFacts() {
+    try { return JSON.parse(localStorage.getItem(LS_FACTS) || "{}"); } catch (e) { return {}; }
+  }
+
+  /** formatVersion=2 のレスポンス各パートから任意キーを横断検索 */
+  function deepFind(parts, key) {
+    for (const part of parts) {
+      if (!part || typeof part !== "object") continue;
+      if (part[key] !== undefined) return part[key];
+      for (const section of Object.values(part)) {
+        if (section && typeof section === "object" && section[key] !== undefined) return section[key];
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * HotelDetailSearch(responseType=large) で各ホテルの telephoneNo / hotelRoomNum を取得。
+   * hotelNo は 1 リクエスト 1 軒のため全 14 軒で約 15 秒（節流 1.1s）。結果は localStorage に永続化。
+   */
+  async function syncHotelFacts(hotels, onProgress) {
+    const facts = getFacts();
+    const targets = hotels.filter(h => h.rakutenHotelNo);
+    let done = 0, updated = 0;
+    for (const h of targets) {
+      try {
+        const body = await request(DETAIL, {
+          hotelNo: h.rakutenHotelNo, responseType: "large", datumType: 1
+        });
+        if (!body.notFound && body.hotels && body.hotels.length) {
+          const first = body.hotels[0];
+          const parts = Array.isArray(first) ? first : first.hotel || [];
+          const tel = deepFind(parts, "telephoneNo");
+          const rooms = parseInt(deepFind(parts, "hotelRoomNum"), 10);
+          facts[h.id] = {
+            phone: tel || null,
+            rooms: Number.isFinite(rooms) && rooms > 0 ? rooms : null,
+            handicapped: deepFind(parts, "handicappedFacilities") || null,
+            at: new Date().toISOString().slice(0, 10)
+          };
+          updated++;
+        }
+      } catch (e) {
+        if (e.isKeyError) throw e; // key 異常は即中断、個別失敗は続行
+      }
+      if (onProgress) onProgress(++done, targets.length);
+    }
+    try { localStorage.setItem(LS_FACTS, JSON.stringify(facts)); } catch (e) { /* ignore */ }
+    return updated;
+  }
+
+  return { getAppId, setAppId, testKey, resolveHotelNos, probeVacancy, getFacts, syncHotelFacts };
 })();
