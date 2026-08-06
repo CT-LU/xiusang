@@ -346,6 +346,16 @@ const Allocator = (() => {
         `T7: オフセット ${batches.map(b => b.departOffsetMin)} ≠ 0,45,90`);
       ok(r.totals.lastReturnMin === 135, `T7: lastReturn ${r.totals.lastReturnMin} ≠ 135`);
     }
+    // 8b. 距離圏フォールバック：zone1 だけでは不足する大人数も全域なら収容できる
+    {
+      const zone1 = HOTELS.filter(h => h.zone === 1);
+      const input = baseInput({ totalPax: 4200 });
+      const near = allocate(input, zone1);
+      ok(!near.ok && near.unassigned.economy > 0, "T8b: zone1 のみで不足が検出されない");
+      const all = allocate(input, HOTELS);
+      ok(all.ok, "T8b: 全域でも 4200 名を収容できない");
+      conservationCheck("T8b", input, HOTELS, all, failures);
+    }
     // 8. 入力矛盾（内訳 > 総数）
     {
       const r = allocate(baseInput({ totalPax: 10, premiumPax: 20 }), HOTELS);

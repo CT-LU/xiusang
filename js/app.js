@@ -18,13 +18,20 @@
     try { localStorage.setItem(LS_OVERRIDES, JSON.stringify(ov)); } catch (e) { /* ignore */ }
   }
 
-  function effectiveHotels() {
+  function effectiveHotels(maxZone) {
     const ov = loadOverrides();
     return HOTELS
-      .filter(h => !(ov[h.id] && ov[h.id].excluded))
+      .filter(h => h.zone <= maxZone && !(ov[h.id] && ov[h.id].excluded))
       .map(h => Object.assign({}, h, {
         usableRooms: ov[h.id] && ov[h.id].usableRooms !== undefined ? ov[h.id].usableRooms : h.usableRooms
       }));
+  }
+
+  /** 未安置が残っているか（入力矛盾は除外＝範囲拡大では解決しない） */
+  function hasShortage(r) {
+    if (r.validation.some(v => v.code === "input-invalid")) return false;
+    const u = r.unassigned;
+    return u.crew + u.accessible + u.familyPax + u.economy > 0;
   }
 
   /** 楽天同期済みの電話・総室数キャッシュを静的データに反映 */
@@ -213,7 +220,7 @@
       }
       setStatus("ok", I18N.t("api-ok"));
       renderTable(result);
-      MapView.update(result.assignments);
+      MapView.update(mapItems(result, result.usedZone || 3));
       renderValidation(result, [
         { severity: "info", code: "api-probe-done", params: { n: withData } },
         { severity: "info", code: "vacancy-note", params: {} }
@@ -226,16 +233,86 @@
   }
 
   // ---------- 計算 ----------
+  /** 全ホテルを状態付きで地図へ渡す */
+  function mapItems(result, usedZone) {
+    const ov = loadOverrides();
+    return HOTELS.map(h => {
+      const asg = result.assignments.find(a => a.hotelId === h.id) || null;
+      let state;
+      if (asg) state = asg.totalPax > 0 ? "assigned" : "zero";
+      else if (ov[h.id] && ov[h.id].excluded) state = "excluded";
+      else state = h.zone > usedZone ? "outrange" : "zero";
+      return { hotel: h, asg, state };
+    });
+  }
+
   function calculate() {
     const input = readInput();
-    const hotels = effectiveHotels();
-    lastResult = Allocator.allocate(input, hotels);
+    const selectedZone = parseInt($("rangeZone").value, 10) || 1;
+    const autoExpand = $("autoExpand").checked;
+
+    let zone = selectedZone;
+    let result = Allocator.allocate(input, effectiveHotels(zone));
+    while (autoExpand && zone < 3 && hasShortage(result)) {
+      zone++;
+      result = Allocator.allocate(input, effectiveHotels(zone));
+    }
+    if (zone !== selectedZone) {
+      result.validation.push({ severity: "warn", code: "range-expanded",
+        params: { label: `${ZONES[zone].zh}／${ZONES[zone].ja}` } });
+    } else if (!autoExpand && zone < 3 && hasShortage(result)) {
+      result.validation.push({ severity: "warn", code: "range-hint", params: {} });
+    }
+
+    lastResult = result;
+    lastResult.usedZone = zone;
     renderValidation(lastResult);
     renderTable(lastResult);
     renderPrintSheets(lastResult);
-    MapView.update(lastResult.assignments);
+    renderPicker(zone);
+    MapView.update(mapItems(lastResult, zone));
     probeAndUpdate(lastResult, input.checkinDate); // 非阻塞
   }
+
+  // ---------- ホテル選択パネル ----------
+  function renderPicker(usedZone) {
+    const box = $("hotelPicker");
+    const ov = loadOverrides();
+    box.innerHTML = "";
+    for (const z of [1, 2, 3]) {
+      const group = document.createElement("div");
+      group.className = "picker-group";
+      group.innerHTML = `<div class="picker-zone ${z > usedZone ? "dim" : ""}">${ZONES[z].ja}<span class="ja">${ZONES[z].zh}</span></div>`;
+      for (const h of HOTELS.filter(h => h.zone === z)) {
+        const excluded = !!(ov[h.id] && ov[h.id].excluded);
+        const rooms = ov[h.id] && ov[h.id].usableRooms !== undefined ? ov[h.id].usableRooms : h.usableRooms;
+        const row = document.createElement("label");
+        row.className = "picker-row" + (h.zone > usedZone ? " dim" : "");
+        row.innerHTML = `
+          <input type="checkbox" data-id="${h.id}" ${excluded ? "" : "checked"}>
+          <span class="picker-name">${h.nameJa}</span>
+          <span class="picker-meta">${h.driveMinutes}分・${rooms}室</span>`;
+        row.querySelector("input").addEventListener("change", e => {
+          const o = loadOverrides();
+          o[h.id] = o[h.id] || {};
+          o[h.id].excluded = !e.target.checked;
+          saveOverrides(o);
+          calculate();
+        });
+        group.appendChild(row);
+      }
+      box.appendChild(group);
+    }
+  }
+
+  /** 地図ポップアップの「使用/除外」ボタンから呼ばれる */
+  window.toggleHotel = id => {
+    const ov = loadOverrides();
+    ov[id] = ov[id] || {};
+    ov[id].excluded = !ov[id].excluded;
+    saveOverrides(ov);
+    calculate();
+  };
 
   // ---------- 初期化 ----------
   function initForm() {
@@ -247,6 +324,14 @@
     })) $(id).value = val;
     $("checkinDate").value = new Date().toISOString().slice(0, 10);
     $("appId").value = RakutenAPI.getAppId();
+    // URL パラメータで上書き（シナリオのブックマークやテストに使用）
+    const q = new URLSearchParams(location.search);
+    for (const id of ["totalPax", "premiumPax", "familyGroups", "familyAvgSize",
+                      "wheelchairPax", "crewCount", "busCapacity", "busesAvailable", "rangeZone"]) {
+      if (q.has(id)) $(id).value = q.get(id);
+    }
+    if (q.has("autoExpand")) $("autoExpand").checked = q.get("autoExpand") !== "0";
+    renderPicker(parseInt($("rangeZone").value, 10) || 1);
   }
 
   async function testApiKey() {
@@ -272,6 +357,8 @@
     $("printBtn").addEventListener("click", () => window.print());
     $("saveKeyBtn").addEventListener("click", testApiKey);
     $("syncBtn").addEventListener("click", syncFacts);
+    $("rangeZone").addEventListener("change", () => lastResult ? calculate() : renderPicker(parseInt($("rangeZone").value, 10) || 1));
+    $("autoExpand").addEventListener("change", () => { if (lastResult) calculate(); });
     $("inputForm").addEventListener("submit", e => { e.preventDefault(); calculate(); });
 
     if (new URLSearchParams(location.search).get("selftest") === "1") {

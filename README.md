@@ -5,6 +5,8 @@
 ## 功能
 
 - 輸入總人數、C/F 艙、家庭組數、輪椅需求、組員數、巴士容量與台數 → 一鍵產生分配方案
+- **三層距離圈**：機場近郊（≤15分）→ 成田市區（≤25分）→ 遠距圈 佐倉・印西・幕張（≤60分）；空房不足時可自動逐圈擴大（可關閉），並以警示標明已擴圈
+- **飯店自選**：左側勾選面板或直接點地圖標記即可將任一飯店納入／排除分配（紅色虛線=已排除、灰色虛線=範圍外）
 - 分配優先序：組員（指定飯店）→ 無障礙 → C/F 艙 → 家庭（**絕不拆散**）→ 經濟艙（依車程貪婪集中）
 - 巴士排班：自動計算每飯店車次與發車波次（T+分鐘），估算最後回程時間
 - Leaflet 地圖：三航廈與各飯店位置、分配人數（標記大小）、狀態（顏色）
@@ -15,6 +17,8 @@
 ## 使用方式
 
 直接開啟 `index.html`（雙擊即可），或部署於任何靜態主機（GitHub Pages）。
+
+可用 URL 參數預填情境做成書籤，例如 `index.html?totalPax=450&crewCount=16&rangeZone=3`（支援 totalPax / premiumPax / familyGroups / familyAvgSize / wheelchairPax / crewCount / busCapacity / busesAvailable / rangeZone / autoExpand）。
 
 ### 楽天即時空房（選用）
 

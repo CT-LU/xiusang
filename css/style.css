@@ -51,12 +51,35 @@ button.primary {
 button.primary .ja { color: #f5c6c5; }
 #printBtn { width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 6px; background: #fff; cursor: pointer; }
 
+/* ホテル選択パネル */
+.hotel-picker { margin-top: 14px; border-top: 1px solid #e0e0e0; padding-top: 10px; }
+.hotel-picker h3 { margin: 0 0 8px; font-size: 0.95em; }
+.picker-group { margin-bottom: 8px; }
+.picker-zone { font-weight: bold; font-size: 0.85em; color: #1a2b4a; background: #eef1f6; padding: 4px 8px; border-radius: 4px; margin-bottom: 4px; }
+.picker-zone .ja { display: inline; margin-left: 6px; }
+.picker-row { display: flex; align-items: center; gap: 6px; padding: 3px 4px; font-weight: normal; margin-bottom: 0; cursor: pointer; border-radius: 4px; }
+.picker-row:hover { background: #f1f3f4; }
+.picker-row input { width: auto; margin: 0; }
+.picker-name { flex: 1; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.picker-meta { font-size: 0.8em; color: #5f6368; white-space: nowrap; }
+.picker-row.dim, .picker-zone.dim { opacity: 0.45; }
+.check-label { display: flex; align-items: center; gap: 6px; }
+.check-label input { width: auto; }
+.check-label .ja { display: inline; }
+.form-panel select { width: 100%; padding: 7px 8px; margin-top: 3px; border: 1px solid #dadce0; border-radius: 4px; font-size: 0.95em; }
+.popup-toggle { margin-top: 6px; padding: 4px 10px; border-radius: 4px; border: 1px solid; cursor: pointer; font-size: 0.9em; }
+.popup-toggle.exclude { background: #fff; color: #d93025; border-color: #d93025; }
+.popup-toggle.include { background: #188038; color: #fff; border-color: #188038; }
+.dim-text { color: #9aa0a6; }
+
 .map-panel { display: flex; flex-direction: column; min-height: 440px; }
 #map { flex: 1; min-height: 400px; border-radius: 8px 8px 0 0; }
 .map-unavailable { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #5f6368; }
 .legend { display: flex; gap: 16px; flex-wrap: wrap; padding: 8px 12px; font-size: 0.85em; }
 .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; margin-right: 4px; }
 .dot.green { background: #188038; } .dot.amber { background: #f9ab00; } .dot.grey { background: #9aa0a6; }
+.dot.red-dash { background: transparent; border: 2px dashed #d93025; }
+.dot.grey-dash { background: transparent; border: 2px dashed #9aa0a6; }
 .terminal-icon { font-size: 22px; text-align: center; line-height: 28px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
 .popup .ja { display: inline; margin-left: 4px; }
 
