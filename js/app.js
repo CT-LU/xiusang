@@ -286,12 +286,15 @@
       for (const h of HOTELS.filter(h => h.zone === z)) {
         const excluded = !!(ov[h.id] && ov[h.id].excluded);
         const rooms = ov[h.id] && ov[h.id].usableRooms !== undefined ? ov[h.id].usableRooms : h.usableRooms;
-        const row = document.createElement("label");
+        const row = document.createElement("div");
         row.className = "picker-row" + (h.zone > usedZone ? " dim" : "");
         row.innerHTML = `
-          <input type="checkbox" data-id="${h.id}" ${excluded ? "" : "checked"}>
-          <span class="picker-name">${h.nameJa}</span>
-          <span class="picker-meta">${h.driveMinutes}分・${rooms}室</span>`;
+          <label class="picker-main">
+            <input type="checkbox" data-id="${h.id}" ${excluded ? "" : "checked"}>
+            <span class="picker-name">${h.nameJa}</span>
+            <span class="picker-meta">${h.driveMinutes}分・${rooms}室</span>
+          </label>
+          <a class="picker-tel" href="tel:${h.phone}" title="${h.phoneVerified ? "楽天公式データ" : "要確認"}">${h.phone}${h.phoneVerified ? "✓" : ""}</a>`;
         row.querySelector("input").addEventListener("change", e => {
           const o = loadOverrides();
           o[h.id] = o[h.id] || {};

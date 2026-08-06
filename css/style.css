@@ -57,11 +57,14 @@ button.primary .ja { color: #f5c6c5; }
 .picker-group { margin-bottom: 8px; }
 .picker-zone { font-weight: bold; font-size: 0.85em; color: #1a2b4a; background: #eef1f6; padding: 4px 8px; border-radius: 4px; margin-bottom: 4px; }
 .picker-zone .ja { display: inline; margin-left: 6px; }
-.picker-row { display: flex; align-items: center; gap: 6px; padding: 3px 4px; font-weight: normal; margin-bottom: 0; cursor: pointer; border-radius: 4px; }
+.picker-row { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 4px; }
 .picker-row:hover { background: #f1f3f4; }
-.picker-row input { width: auto; margin: 0; }
+.picker-main { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; font-weight: normal; margin-bottom: 0; cursor: pointer; }
+.picker-main input { width: auto; margin: 0; flex-shrink: 0; }
 .picker-name { flex: 1; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.picker-meta { font-size: 0.8em; color: #5f6368; white-space: nowrap; }
+.picker-meta { font-size: 0.78em; color: #5f6368; white-space: nowrap; }
+.picker-tel { font-size: 0.78em; white-space: nowrap; color: #1a73e8; text-decoration: none; flex-shrink: 0; }
+.picker-tel:hover { text-decoration: underline; }
 .picker-row.dim, .picker-zone.dim { opacity: 0.45; }
 .check-label { display: flex; align-items: center; gap: 6px; }
 .check-label input { width: auto; }
