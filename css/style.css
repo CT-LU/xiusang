@@ -1,0 +1,105 @@
+/* ============ 基本 ============ */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Hiragino Sans", "Noto Sans CJK TC", "Noto Sans CJK JP", "Microsoft JhengHei", "Yu Gothic", sans-serif;
+  background: #f2f4f7;
+  color: #202124;
+  font-size: 14px;
+}
+.ja { display: block; font-size: 0.82em; color: #5f6368; font-weight: normal; }
+h1 .ja-title { font-size: 0.6em; color: #5f6368; margin-left: 0.6em; font-weight: normal; }
+.warn-text { color: #b06000; font-weight: bold; }
+
+/* ============ Header ============ */
+header {
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
+  background: #1a2b4a; color: #fff; padding: 10px 16px;
+}
+header h1 { font-size: 1.25em; margin: 0; }
+header small { color: #b9c4d6; }
+header .ja, header .ja-title { color: #b9c4d6; }
+.api-box { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.api-box label { font-size: 0.85em; text-align: right; }
+.api-box input { padding: 6px 8px; border: none; border-radius: 4px; width: 180px; }
+.api-box button { padding: 4px 10px; border: none; border-radius: 4px; cursor: pointer; background: #3d5a8f; color: #fff; }
+.api-box button .ja { color: #b9c4d6; }
+.status-light { width: 14px; height: 14px; border-radius: 50%; display: inline-block; background: #9aa0a6; }
+.status-light.ok { background: #34a853; box-shadow: 0 0 6px #34a853; }
+.status-light.fail { background: #ea4335; box-shadow: 0 0 6px #ea4335; }
+.status-light.probing { background: #fbbc04; animation: blink 1s infinite; }
+.status-light.offline, .status-light.idle { background: #9aa0a6; }
+@keyframes blink { 50% { opacity: 0.3; } }
+.status-text { font-size: 0.8em; max-width: 260px; }
+.status-text .ja { color: #b9c4d6; display: inline; margin-left: 6px; }
+
+/* ============ 版面 ============ */
+main {
+  display: grid; grid-template-columns: 300px 1fr; gap: 12px;
+  padding: 12px 16px 0;
+}
+.panel { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+.form-panel { padding: 14px; }
+.form-panel h2, .table-panel h2 { margin: 0 0 10px; font-size: 1.05em; }
+.form-panel label { display: block; margin-bottom: 10px; font-weight: 600; }
+.form-panel input { width: 100%; padding: 7px 8px; margin-top: 3px; border: 1px solid #dadce0; border-radius: 4px; font-size: 1em; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+button.primary {
+  width: 100%; padding: 11px; margin: 6px 0; border: none; border-radius: 6px; cursor: pointer;
+  background: #c5221f; color: #fff; font-size: 1.1em; font-weight: bold;
+}
+button.primary .ja { color: #f5c6c5; }
+#printBtn { width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 6px; background: #fff; cursor: pointer; }
+
+.map-panel { display: flex; flex-direction: column; min-height: 440px; }
+#map { flex: 1; min-height: 400px; border-radius: 8px 8px 0 0; }
+.map-unavailable { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #5f6368; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; padding: 8px 12px; font-size: 0.85em; }
+.dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+.dot.green { background: #188038; } .dot.amber { background: #f9ab00; } .dot.grey { background: #9aa0a6; }
+.terminal-icon { font-size: 22px; text-align: center; line-height: 28px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
+.popup .ja { display: inline; margin-left: 4px; }
+
+/* ============ 警示帯 ============ */
+.validation-band { padding: 10px 16px 0; }
+.alert { padding: 9px 12px; border-radius: 6px; margin-bottom: 6px; border-left: 5px solid; }
+.alert .zh { display: block; font-weight: 600; }
+.alert-error { background: #fce8e6; border-color: #c5221f; color: #a50e0e; }
+.alert-warn  { background: #fef7e0; border-color: #f9ab00; color: #7a5900; }
+.alert-info  { background: #e8f0fe; border-color: #1a73e8; color: #174ea6; }
+
+/* ============ 結果表 ============ */
+.table-panel { margin: 12px 16px; padding: 14px; }
+.table-scroll { overflow-x: auto; }
+#resultTable { border-collapse: collapse; width: 100%; min-width: 1080px; }
+#resultTable th, #resultTable td { border: 1px solid #e0e0e0; padding: 6px 8px; text-align: center; vertical-align: middle; }
+#resultTable thead th { background: #f1f3f4; position: sticky; top: 0; }
+#resultTable .hotel-name { text-align: left; font-weight: 600; white-space: nowrap; }
+#resultTable .hotel-name small { color: #5f6368; font-weight: normal; }
+#resultTable .total-cell { font-weight: bold; white-space: nowrap; }
+#resultTable .batches { font-size: 0.85em; white-space: nowrap; }
+#resultTable tr.needs-phone { background: #fef7e0; }
+#resultTable tr.zero td { color: #9aa0a6; }
+#resultTable tr.excluded td { color: #c0c0c0; background: #fafafa; }
+#resultTable .ov-rooms { width: 64px; padding: 4px; text-align: right; }
+#resultTable tfoot th { background: #f1f3f4; text-align: left; padding: 8px; }
+.vac-cell small { color: #5f6368; }
+.footnote { color: #5f6368; font-size: 0.85em; margin: 10px 0 0; }
+
+/* ============ 平板直立（現場運用） ============ */
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; }
+  .map-panel { min-height: 320px; }
+  header { flex-direction: column; align-items: flex-start; }
+}
+
+/* ============ 印刷：ホテルごと 1 ページの乗車名簿 ============ */
+#printSheets { display: none; }
+@media print {
+  body > header, body > main, .validation-band, .table-panel { display: none !important; }
+  #printSheets { display: block; }
+  .print-sheet { page-break-after: always; padding: 20mm 10mm 0; font-size: 12pt; }
+  .print-sheet h2 { border-bottom: 2px solid #000; padding-bottom: 4px; }
+  .print-batches { border-collapse: collapse; width: 100%; margin-top: 8mm; }
+  .print-batches th, .print-batches td { border: 1px solid #000; padding: 6mm 4mm; text-align: center; }
+}

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>成田空港 欠航時ホテル・バス手配 | 成田機場停飛住宿分配</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header>
+  <div class="title">
+    <h1>欠航時ホテル・バス手配<span class="ja-title">停飛住宿・巴士分配工具</span></h1>
+    <small>成田空港 / 成田機場 ・ NRT</small>
+  </div>
+  <div class="api-box">
+    <label for="appId">楽天 applicationId<br><span class="ja">（空欄=オフラインモード / 留空=離線模式）</span></label>
+    <input type="password" id="appId" placeholder="applicationId" autocomplete="off">
+    <button type="button" id="saveKeyBtn">保存・テスト<br><span class="ja">儲存並測試</span></button>
+    <span id="statusLight" class="status-light offline" title="API 状態"></span>
+    <span id="statusText" class="status-text"></span>
+  </div>
+</header>
+
+<main>
+  <aside class="panel form-panel">
+    <form id="inputForm">
+      <h2>入力 <span class="ja">輸入條件</span></h2>
+
+      <label>総旅客数（乗務員除く）<span class="ja">總旅客人數（不含組員）</span>
+        <input type="number" id="totalPax" min="0"></label>
+
+      <label>C・Fクラス <span class="ja">商務／頭等艙人數</span>
+        <input type="number" id="premiumPax" min="0"></label>
+
+      <div class="row2">
+        <label>家族組数 <span class="ja">家庭組數</span>
+          <input type="number" id="familyGroups" min="0"></label>
+        <label>平均人数/組 <span class="ja">每組平均人數</span>
+          <input type="number" id="familyAvgSize" min="1"></label>
+      </div>
+
+      <label>車椅子・バリアフリー <span class="ja">輪椅／無障礙需求人數</span>
+        <input type="number" id="wheelchairPax" min="0"></label>
+
+      <label>乗務員 <span class="ja">機組人員（住指定飯店）</span>
+        <input type="number" id="crewCount" min="0"></label>
+
+      <div class="row2">
+        <label>バス定員 <span class="ja">巴士容量（人／台）</span>
+          <input type="number" id="busCapacity" min="1"></label>
+        <label>バス台数 <span class="ja">可調度巴士台數</span>
+          <input type="number" id="busesAvailable" min="1"></label>
+      </div>
+
+      <label>チェックイン日 <span class="ja">入住日期（楽天照会用）</span>
+        <input type="date" id="checkinDate"></label>
+
+      <button type="submit" id="calcBtn" class="primary">配分を計算<span class="ja">計算分配方案</span></button>
+      <button type="button" id="printBtn">乗車名簿を印刷<span class="ja">列印乘車名單</span></button>
+    </form>
+  </aside>
+
+  <section class="panel map-panel">
+    <div id="map"></div>
+    <div class="legend">
+      <span><i class="dot green"></i>充足 / 十分</span>
+      <span><i class="dot amber"></i>要電話確認 / 需電話確認</span>
+      <span><i class="dot grey"></i>未割当 / 未分配</span>
+      <span>✈ ターミナル / 航廈</span>
+    </div>
+  </section>
+</main>
+
+<section id="validation" class="validation-band"></section>
+
+<section class="panel table-panel">
+  <h2>配分結果 <span class="ja">分配結果</span></h2>
+  <div class="table-scroll">
+    <table id="resultTable">
+      <thead>
+        <tr>
+          <th>ホテル<br><span class="ja">飯店</span></th>
+          <th>乗務員<br><span class="ja">組員</span></th>
+          <th>C・F</th>
+          <th>家族<br><span class="ja">家庭</span></th>
+          <th>車椅子<br><span class="ja">無障礙</span></th>
+          <th>一般<br><span class="ja">經濟艙</span></th>
+          <th>計（名/室）<br><span class="ja">合計（人/房）</span></th>
+          <th>空室（online）<br><span class="ja">線上空房</span></th>
+          <th>バス<br><span class="ja">巴士</span></th>
+          <th>発車便<br><span class="ja">發車批次</span></th>
+          <th>電話</th>
+          <th>可用室数<br><span class="ja">可用房數</span></th>
+          <th>除外</th>
+        </tr>
+      </thead>
+      <tbody id="resultBody"></tbody>
+      <tfoot><tr><th>合計</th><th colspan="12" id="totCell"></th></tr></tfoot>
+    </table>
+  </div>
+  <p class="footnote">
+    ※ 室数・電話番号は推定値です。運用前に必ず各ホテルへ電話確認してください。オンライン空室は電話で確保できる室数より大幅に少ないため参考値です。<br>
+    <span class="ja">※ 房數與電話為估計值，正式使用前務必逐家電話確認。線上空房遠低於電話可徵用數，僅供參考。</span>
+  </p>
+</section>
+
+<div id="printSheets"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="js/hotels-data.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/allocator.js"></script>
+<script src="js/rakuten-api.js"></script>
+<script src="js/map.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
