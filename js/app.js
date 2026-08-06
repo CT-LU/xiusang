@@ -297,12 +297,29 @@
           o[h.id] = o[h.id] || {};
           o[h.id].excluded = !e.target.checked;
           saveOverrides(o);
-          calculate();
+          refreshSelection();
         });
         group.appendChild(row);
       }
       box.appendChild(group);
     }
+  }
+
+  /** 計算前でも全ホテルを地図に表示するための状態一覧 */
+  function initialMapItems() {
+    const ov = loadOverrides();
+    const zone = parseInt($("rangeZone").value, 10) || 1;
+    return HOTELS.map(h => ({
+      hotel: h, asg: null,
+      state: (ov[h.id] && ov[h.id].excluded) ? "excluded" : (h.zone > zone ? "outrange" : "zero")
+    }));
+  }
+
+  /** 選択状態が変わったとき：計算済みなら再計算、未計算なら地図とパネルだけ更新 */
+  function refreshSelection() {
+    if (lastResult) { calculate(); return; }
+    renderPicker(parseInt($("rangeZone").value, 10) || 1);
+    MapView.update(initialMapItems());
   }
 
   /** 地図ポップアップの「使用/除外」ボタンから呼ばれる */
@@ -311,7 +328,7 @@
     ov[id] = ov[id] || {};
     ov[id].excluded = !ov[id].excluded;
     saveOverrides(ov);
-    calculate();
+    refreshSelection();
   };
 
   // ---------- 初期化 ----------
@@ -350,6 +367,7 @@
     applyFacts();
     initForm();
     MapView.init();
+    MapView.update(initialMapItems()); // 計算前から全ホテルを表示（ポップアップで使用/除外可）
     setStatus(RakutenAPI.getAppId() ? "idle" : "offline",
       RakutenAPI.getAppId() ? null : I18N.t("api-no-key"));
 
@@ -357,7 +375,7 @@
     $("printBtn").addEventListener("click", () => window.print());
     $("saveKeyBtn").addEventListener("click", testApiKey);
     $("syncBtn").addEventListener("click", syncFacts);
-    $("rangeZone").addEventListener("change", () => lastResult ? calculate() : renderPicker(parseInt($("rangeZone").value, 10) || 1));
+    $("rangeZone").addEventListener("change", refreshSelection);
     $("autoExpand").addEventListener("change", () => { if (lastResult) calculate(); });
     $("inputForm").addEventListener("submit", e => { e.preventDefault(); calculate(); });
 

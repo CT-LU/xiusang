@@ -63,6 +63,9 @@ const MapView = (() => {
       return `<div class="popup">${head}<span class="dim-text">除外中 / 已排除</span><br>${toggleButton(item)}</div>`;
     }
     const asg = item.asg;
+    if (!asg || asg.totalPax === 0) {
+      return `<div class="popup">${head}<span class="dim-text">未割当 / 未分配</span><br>${toggleButton(item)}</div>`;
+    }
     const vac = I18N.vacancyLabel(asg.vacancyTier);
     const batches = asg.busBatches
       .map(b => `#${b.batch}: ${b.pax}名 T+${b.departOffsetMin}分`).join("<br>");
