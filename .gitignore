@@ -10,3 +10,7 @@ Thumbs.db
 # 通用暫存
 *.log
 tmp/
+
+# 本地 AI 輔助設定（不推上 repo）
+CLAUDE.md
+.claude/
