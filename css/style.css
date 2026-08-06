@@ -39,7 +39,7 @@ header .ja, header .ja-title { color: #b9c4d6; }
 /* ============ 版面 ============ */
 main {
   display: grid; grid-template-columns: 300px 1fr; gap: 12px;
-  padding: 12px 16px 0;
+  padding: 12px 16px 16px;
   align-items: start;
 }
 .panel { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
@@ -86,7 +86,8 @@ button.primary .ja { color: #f5c6c5; }
 #mapToggle { padding: 4px 12px; border: 1px solid #dadce0; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.85em; }
 #mapToggle:hover { background: #f1f3f4; }
 #mapToggle .ja { display: inline; margin-left: 4px; color: #5f6368; }
-#map { height: 260px; }
+#map { height: 390px; }
+.right-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .map-panel.collapsed #map, .map-panel.collapsed .legend { display: none; }
 .map-unavailable { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #5f6368; }
 .legend { display: flex; gap: 16px; flex-wrap: wrap; padding: 8px 12px; font-size: 0.85em; }
@@ -98,7 +99,8 @@ button.primary .ja { color: #f5c6c5; }
 .popup .ja { display: inline; margin-left: 4px; }
 
 /* ============ 警示帯 ============ */
-.validation-band { padding: 10px 16px 0; }
+.validation-band { padding: 0; }
+.validation-band:empty { display: none; }
 .alert { padding: 9px 12px; border-radius: 6px; margin-bottom: 6px; border-left: 5px solid; }
 .alert .zh { display: block; font-weight: 600; }
 .alert-error { background: #fce8e6; border-color: #c5221f; color: #a50e0e; }
@@ -106,7 +108,7 @@ button.primary .ja { color: #f5c6c5; }
 .alert-info  { background: #e8f0fe; border-color: #1a73e8; color: #174ea6; }
 
 /* ============ 結果表 ============ */
-.table-panel { margin: 12px 16px; padding: 14px; }
+.table-panel { padding: 14px; min-width: 0; }
 .table-scroll { overflow-x: auto; }
 #resultTable { border-collapse: collapse; width: 100%; min-width: 1080px; }
 #resultTable th, #resultTable td { border: 1px solid #e0e0e0; padding: 6px 8px; text-align: center; vertical-align: middle; }
@@ -126,7 +128,7 @@ button.primary .ja { color: #f5c6c5; }
 /* ============ 平板直立（現場運用） ============ */
 @media (max-width: 900px) {
   main { grid-template-columns: 1fr; }
-  #map { height: 240px; }
+  #map { height: 300px; }
   header { flex-direction: column; align-items: flex-start; }
 }
 

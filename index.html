@@ -6,7 +6,7 @@
 <title>成田空港 欠航時ホテル・バス手配 | 成田機場停飛住宿分配</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<link rel="stylesheet" href="css/style.css?v=20260806d">
+<link rel="stylesheet" href="css/style.css?v=20260806e">
 </head>
 <body>
 
@@ -83,6 +83,7 @@
     </div>
   </aside>
 
+  <div class="right-col">
   <section class="panel map-panel" id="mapPanel">
     <div class="map-bar">
       <span class="map-bar-title">地図 <span class="ja">地圖</span></span>
@@ -98,11 +99,10 @@
       <span>✈ ターミナル / 航廈</span>
     </div>
   </section>
-</main>
 
-<section id="validation" class="validation-band"></section>
+  <section id="validation" class="validation-band"></section>
 
-<section class="panel table-panel">
+  <section class="panel table-panel">
   <h2>配分結果 <span class="ja">分配結果</span></h2>
   <div class="table-scroll">
     <table id="resultTable">
@@ -133,17 +133,19 @@
     ※ 室数・電話番号は初期状態では推定値（※印）です。applicationId を保存・テストすると自動で楽天公式データに更新されます（✓印）。可用室数（徴用可能数）だけは運用判断のため手動調整してください。オンライン空室は電話で確保できる室数より大幅に少ないため参考値です。<br>
     <span class="ja">※ 房數與電話初始為估計值（※），儲存並測試 applicationId 後會自動更新為楽天官方資料（✓）。唯「可用房數」（可徵用數）屬營運判斷，請手動調整。線上空房遠低於電話可徵用數，僅供參考。</span>
   </p>
-</section>
+  </section>
+  </div>
+</main>
 
 <div id="printSheets"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="js/hotels-data.js?v=20260806d"></script>
-<script src="js/i18n.js?v=20260806d"></script>
-<script src="js/allocator.js?v=20260806d"></script>
-<script src="js/rakuten-api.js?v=20260806d"></script>
-<script src="js/map.js?v=20260806d"></script>
-<script src="js/app.js?v=20260806d"></script>
+<script src="js/hotels-data.js?v=20260806e"></script>
+<script src="js/i18n.js?v=20260806e"></script>
+<script src="js/allocator.js?v=20260806e"></script>
+<script src="js/rakuten-api.js?v=20260806e"></script>
+<script src="js/map.js?v=20260806e"></script>
+<script src="js/app.js?v=20260806e"></script>
 </body>
 </html>
