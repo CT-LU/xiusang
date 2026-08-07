@@ -38,7 +38,7 @@ header .ja, header .ja-title { color: #b9c4d6; }
 
 /* ============ 版面 ============ */
 main {
-  display: grid; grid-template-columns: 300px 1fr; gap: 12px;
+  display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 12px;
   padding: 12px 16px 16px;
   align-items: start;
 }
@@ -61,16 +61,17 @@ button.primary .ja { color: #f5c6c5; }
 .picker-group { margin-bottom: 8px; }
 .picker-zone { font-weight: bold; font-size: 0.85em; color: #1a2b4a; background: #eef1f6; padding: 4px 8px; border-radius: 4px; margin-bottom: 4px; }
 .picker-zone .ja { display: inline; margin-left: 6px; }
-.picker-row { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 4px; }
+.picker-row { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; padding: 3px 4px; border-radius: 4px; }
 .picker-row:hover { background: #f1f3f4; }
-.picker-main { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; font-weight: normal; margin-bottom: 0; cursor: pointer; }
+/* .form-panel label より詳細度を上げる（block に戻ると名前が電話番号に重なる） */
+.form-panel label.picker-main { display: flex; align-items: center; gap: 6px; flex: 1 1 150px; min-width: 0; font-weight: normal; margin-bottom: 0; cursor: pointer; }
 .picker-main input { width: auto; margin: 0; flex-shrink: 0; }
-.picker-name { flex: 1; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.picker-meta { font-size: 0.78em; color: #5f6368; white-space: nowrap; }
-.picker-tel { font-size: 0.78em; white-space: nowrap; color: #1a73e8; text-decoration: none; flex-shrink: 0; }
+.picker-name { flex: 1 1 auto; min-width: 0; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.picker-meta { font-size: 0.78em; color: #5f6368; white-space: nowrap; flex-shrink: 0; }
+.picker-tel { font-size: 0.78em; white-space: nowrap; color: #1a73e8; text-decoration: none; flex-shrink: 0; margin-left: auto; }
 .picker-tel:hover { text-decoration: underline; }
 .picker-row.dim, .picker-zone.dim { opacity: 0.45; }
-.check-label { display: flex; align-items: center; gap: 6px; }
+.form-panel label.check-label { display: flex; align-items: center; gap: 6px; }
 .check-label input { width: auto; }
 .check-label .ja { display: inline; }
 .form-panel select { width: 100%; padding: 7px 8px; margin-top: 3px; border: 1px solid #dadce0; border-radius: 4px; font-size: 0.95em; }
@@ -127,7 +128,7 @@ button.primary .ja { color: #f5c6c5; }
 
 /* ============ 平板直立（現場運用） ============ */
 @media (max-width: 900px) {
-  main { grid-template-columns: 1fr; }
+  main { grid-template-columns: minmax(0, 1fr); }
   #map { height: 300px; }
   header { flex-direction: column; align-items: flex-start; }
 }
