@@ -39,11 +39,12 @@ const MapView = (() => {
    * fill   = 円の塗り / minRadius = 未割当時の半径
    */
   const STYLE = {
-    assigned: { line: "#188038", stroke: "#ffffff", fill: "#188038", fillOpacity: 0.9,  weight: 2,   dashArray: null,  minRadius: 8 },
+    // 緑は OSM の森林・公園と同化するため使わない（濃青＝割当済み）
+    assigned: { line: "#1565c0", stroke: "#ffffff", fill: "#1565c0", fillOpacity: 0.9,  weight: 2,   dashArray: null,  minRadius: 8 },
     phone:    { line: "#f9ab00", stroke: "#ffffff", fill: "#f9ab00", fillOpacity: 0.95, weight: 2,   dashArray: null,  minRadius: 8 },
-    zero:     { line: "#455a64", stroke: "#ffffff", fill: "#455a64", fillOpacity: 0.95, weight: 2,   dashArray: null,  minRadius: 8 },
+    zero:     { line: "#3c4043", stroke: "#ffffff", fill: "#3c4043", fillOpacity: 0.95, weight: 2,   dashArray: null,  minRadius: 8 },
     excluded: { line: "#d93025", stroke: "#d93025", fill: "#d93025", fillOpacity: 0.2,  weight: 2.5, dashArray: "4 3", minRadius: 8 },
-    outrange: { line: "#78909c", stroke: "#607d8b", fill: "#b0bec5", fillOpacity: 0.55, weight: 2,   dashArray: "3 3", minRadius: 7 }
+    outrange: { line: "#9aa0a6", stroke: "#80868b", fill: "#c8ccd0", fillOpacity: 0.55, weight: 2,   dashArray: "3 3", minRadius: 7 }
   };
 
   function styleOf(item) {
