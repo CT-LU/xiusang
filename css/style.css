@@ -245,7 +245,5 @@ button.primary .ja { color: #f5c6c5; }
   .ov-cost thead .grand { font-size: 8pt; }
 
   .ov-note { font-size: 7.5pt; margin: 2mm 0 0; line-height: 1.35; }
-  .ov-sign { width: 100%; border-collapse: collapse; margin-top: 4mm; }
-  .ov-sign th { border: 1px solid #000; background: #eaeaea; font-size: 8pt; padding: 1.2mm; }
-  .ov-sign td { border: 1px solid #000; height: 15mm; }
+  .ov-map { display: block; width: 100%; height: auto; max-height: 62mm; }
 }

@@ -234,6 +234,94 @@
   }
 
   /**
+   * 概要ページの配置図：外部タイルに依存しないインライン SVG。
+   * 空港を原点として経緯度をメートル平面へ投影し、等比縮尺で描く（方位・相対距離は実測どおり）。
+   * 番号はホテル別一覧の No. と一致。円の大きさは収容人数の目安。
+   */
+  function overviewMapSvg(rows) {
+    if (!rows.length) return "";
+    const W = 760, H = 300;
+    // 右は「NRT 空港」ラベル、下は人数ラベル・目盛り・注記のための余白
+    const PAD_L = 30, PAD_R = 95, PAD_T = 30, PAD_B = 46;
+    const IW = W - PAD_L - PAD_R, IH = H - PAD_T - PAD_B;
+    const MIN_SPAN_M = 8000; // 近郊に固まっている時に数kmの差を全画面へ誇張しない
+    const c = AIRPORT_CENTER;
+    const kx = 111320 * Math.cos(c.lat * Math.PI / 180);
+    const pts = rows.map((a, i) => ({
+      no: i + 1, asg: a,
+      mx: (a.hotel.lng - c.lng) * kx,
+      my: -(a.hotel.lat - c.lat) * 111320
+    }));
+    const xs = [0, ...pts.map(p => p.mx)], ys = [0, ...pts.map(p => p.my)];
+    const spanX = Math.max(Math.max(...xs) - Math.min(...xs), MIN_SPAN_M);
+    const spanY = Math.max(Math.max(...ys) - Math.min(...ys), MIN_SPAN_M * IH / IW);
+    const scale = Math.min(IW / spanX, IH / spanY);
+    const cx = (Math.max(...xs) + Math.min(...xs)) / 2;
+    const cy = (Math.max(...ys) + Math.min(...ys)) / 2;
+    const px = m => PAD_L + IW / 2 + (m - cx) * scale;
+    const py = m => PAD_T + IH / 2 + (m - cy) * scale;
+    const maxPax = Math.max(...rows.map(a => a.totalPax), 1);
+
+    // 目盛り：図幅のおおよそ 1/5 に収まる切りの良い距離
+    const niceKm = [1, 2, 5, 10, 20, 50].find(k => k * 1000 * scale > IW / 5) || 50;
+    const barPx = niceKm * 1000 * scale;
+    const ax = px(0), ay = py(0);
+
+    return `
+      <svg class="ov-map" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img">
+        <rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" fill="none" stroke="#000" stroke-width="1"/>
+        ${pts.map(p =>
+          `<line x1="${ax}" y1="${ay}" x2="${px(p.mx)}" y2="${py(p.my)}"
+                 stroke="#999" stroke-width="0.6" stroke-dasharray="3 3"/>`).join("")}
+        ${(() => {
+          const nodes = pts.map(p => ({
+            no: p.no, pax: p.asg.totalPax,
+            x: px(p.mx), y: py(p.my),
+            r: 4.5 + 9 * Math.sqrt(p.asg.totalPax / maxPax) // 面積で人数を表す
+          }));
+          // 人数ラベルの簡易衝突回避：他のラベルにも他の円にも重ならない位置まで下げる
+          const placed = [];
+          for (const n of nodes) {
+            n.ly = n.y + n.r + 8;
+            for (let i = 0; i < 12; i++) {
+              const hitLabel = placed.some(q => Math.abs(q.x - n.x) < 24 && Math.abs(q.y - n.ly) < 9);
+              const hitCircle = nodes.some(m => m !== n && Math.hypot(m.x - n.x, m.y - n.ly) < m.r + 4);
+              if (!hitLabel && !hitCircle) break;
+              n.ly += 9;
+            }
+            placed.push({ x: n.x, y: n.ly });
+          }
+          // 引き出し線を先に全部描いてから円を重ねる（線が他の円を横切っても隠れる）
+          return nodes.filter(n => n.ly > n.y + n.r + 12).map(n =>
+            `<line x1="${n.x}" y1="${n.y + n.r}" x2="${n.x}" y2="${n.ly - 7}"
+                   stroke="#666" stroke-width="0.5"/>`).join("") +
+            nodes.map(n =>
+            `<circle cx="${n.x}" cy="${n.y}" r="${n.r}" fill="#fff" stroke="#000" stroke-width="1.4"/>
+             <text x="${n.x}" y="${n.y + 3.4}" text-anchor="middle"
+                   font-size="9.5" font-weight="bold">${n.no}</text>
+             <text x="${n.x}" y="${n.ly}" text-anchor="middle" font-size="7.5"
+                   >${n.ly > n.y + n.r + 12 ? `${n.no}:` : ""}${n.pax}名</text>`).join("");
+        })()}
+        <path d="M ${ax - 11} ${ay} L ${ax + 11} ${ay} M ${ax} ${ay - 11} L ${ax} ${ay + 11}"
+              stroke="#000" stroke-width="2.5"/>
+        <text x="${ax + 14}" y="${ay + 4}" font-size="11" font-weight="bold">NRT 空港</text>
+        <g transform="translate(${W - PAD_R - barPx}, ${H - 14})">
+          <line x1="0" y1="0" x2="${barPx}" y2="0" stroke="#000" stroke-width="1.6"/>
+          <line x1="0" y1="-4" x2="0" y2="4" stroke="#000" stroke-width="1.6"/>
+          <line x1="${barPx}" y1="-4" x2="${barPx}" y2="4" stroke="#000" stroke-width="1.6"/>
+          <text x="${barPx / 2}" y="-6" text-anchor="middle" font-size="9">${niceKm} km</text>
+        </g>
+        <g transform="translate(${PAD_L - 12}, ${PAD_T - 16})">
+          <path d="M 0 14 L 0 0 M 0 0 L -4 5 M 0 0 L 4 5" stroke="#000" stroke-width="1.4" fill="none"/>
+          <text x="6" y="8" font-size="9">N</text>
+        </g>
+        <text x="${PAD_L - 12}" y="${H - 10}" font-size="8.5" fill="#333">
+          ※ 空港の西約60km に東京都心 / 東京市中心在機場西方約60km
+        </text>
+      </svg>`;
+  }
+
+  /**
    * 印刷 1 枚目：本社報告用サマリ。
    * 「何名をどこへ・バス何台・いつ終わる・何が未解決か」を 1 ページに集約する。
    * 便名と配車開始時刻 T の実時刻は入力項目に無いため手書き欄とする。
@@ -336,19 +424,23 @@
         <span class="zh">※ 住宿單價來源：楽天實勢 ${cost.sources.rakuten || 0} 家／手動 ${cost.sources.manual || 0} 家／推定 ${cost.sources.tier || 0} 家。實勢價取一般散客牌價的高位（保守），航空公司契約價通常低於此；線上查詢為 1 室 1 人的價格，2 人／房的實際金額可能高於預估。巴士與餐費為手動單價。</span>
       </p>` : ""}
 
+      <h3>配置図（空港からの方位・距離）<span class="ja">飯店與機場的相對位置｜圓內編號對應下表 No.，圓大小＝收容人數</span></h3>
+      ${overviewMapSvg(rows)}
+
       <h3>ホテル別 配分一覧 <span class="ja">各飯店分配明細</span></h3>
       <table class="ov-table${rows.length > 9 ? " dense" : ""}">
         <thead>
           <tr>
-            <th class="l">ホテル / 飯店</th><th>車程</th><th>乗務員</th><th>C・F</th>
+            <th>No.</th><th class="l">ホテル / 飯店</th><th>車程</th><th>乗務員</th><th>C・F</th>
             <th>家族</th><th>車椅子</th><th>一般</th><th>計（名/室）</th>
             <th>宿泊費</th><th>バス</th><th>発車 T+分</th><th class="l">TEL</th>
           </tr>
         </thead>
         <tbody>
-          ${rows.map(a => {
+          ${rows.map((a, i) => {
             const b = a.breakdown;
             return `<tr>
+              <td class="strong">${i + 1}</td>
               <td class="l">${a.hotel.nameJa}${a.hotel.crewDesignated ? " <small>（乗務員指定）</small>" : ""}</td>
               <td>${a.hotel.driveMinutes}分</td>
               <td>${b.crew.pax || ""}</td>
@@ -368,7 +460,7 @@
         </tbody>
         <tfoot>
           <tr>
-            <th class="l">合計 / 總計</th><th></th>
+            <th></th><th class="l">合計 / 總計</th><th></th>
             <th>${sum("crew")}</th><th>${sum("premium")}</th>
             <th>${rows.reduce((a, r) => a + r.breakdown.family.groups, 0)}組${sum("family")}名</th>
             <th>${sum("accessible")}</th><th>${sum("economy")}</th>
@@ -382,12 +474,7 @@
       <p class="ov-note">
         ※「T+分」は配車開始時刻 T からの経過分。室数・空室は電話確認前の計画値です。
         <span class="zh">※「T+分」為發車起點 T 起算的分鐘數；房數與空房為電話確認前的計劃值。</span>
-      </p>
-
-      <table class="ov-sign">
-        <tr><th>作成 / 製表</th><th>現場責任者 / 現場負責</th><th>本社確認 / 總部確認</th></tr>
-        <tr><td></td><td></td><td></td></tr>
-      </table>`;
+      </p>`;
     return div;
   }
 
