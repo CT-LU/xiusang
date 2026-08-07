@@ -271,16 +271,46 @@
     probeAndUpdate(lastResult, input.checkinDate); // 非阻塞
   }
 
+  /** 複数ホテルの使用/除外をまとめて更新（全選択・範囲選択の共通処理） */
+  function setHotelsExcluded(ids, excluded) {
+    const ov = loadOverrides();
+    for (const id of ids) {
+      ov[id] = ov[id] || {};
+      ov[id].excluded = excluded;
+    }
+    saveOverrides(ov);
+    refreshSelection();
+  }
+
   // ---------- ホテル選択パネル ----------
   function renderPicker(usedZone) {
     const box = $("hotelPicker");
     const ov = loadOverrides();
+    const isOn = h => !(ov[h.id] && ov[h.id].excluded);
     box.innerHTML = "";
+
+    $("pickCount").innerHTML =
+      `${HOTELS.filter(isOn).length}/${HOTELS.length} 選択中 <span class="ja">已勾選</span>`;
+
     for (const z of [1, 2, 3]) {
+      const zoneHotels = HOTELS.filter(h => h.zone === z);
+      const onCount = zoneHotels.filter(isOn).length;
       const group = document.createElement("div");
       group.className = "picker-group";
-      group.innerHTML = `<div class="picker-zone ${z > usedZone ? "dim" : ""}">${ZONES[z].ja}<span class="ja">${ZONES[z].zh}</span></div>`;
-      for (const h of HOTELS.filter(h => h.zone === z)) {
+
+      // ゾーン見出し自体をチェックボックスにして、その圏だけ一括切替できるようにする
+      const head = document.createElement("label");
+      head.className = "picker-zone" + (z > usedZone ? " dim" : "");
+      head.innerHTML = `<input type="checkbox" ${onCount === zoneHotels.length ? "checked" : ""}>
+        <span class="picker-zone-name">${ZONES[z].ja}<span class="ja">${ZONES[z].zh}</span></span>
+        <span class="picker-zone-count">${onCount}/${zoneHotels.length}</span>`;
+      const headBox = head.querySelector("input");
+      headBox.indeterminate = onCount > 0 && onCount < zoneHotels.length;
+      headBox.addEventListener("change", e =>
+        setHotelsExcluded(zoneHotels.map(h => h.id), !e.target.checked));
+      group.appendChild(head);
+
+      for (const h of zoneHotels) {
         const excluded = !!(ov[h.id] && ov[h.id].excluded);
         const rooms = ov[h.id] && ov[h.id].usableRooms !== undefined ? ov[h.id].usableRooms : h.usableRooms;
         const row = document.createElement("div");
@@ -292,13 +322,8 @@
             <span class="picker-meta">${h.driveMinutes}分・${rooms}室</span>
           </label>
           <a class="picker-tel" href="tel:${h.phone}" title="${h.phoneVerified ? "楽天公式データ" : "要確認"}">${h.phone}${h.phoneVerified ? "✓" : ""}</a>`;
-        row.querySelector("input").addEventListener("change", e => {
-          const o = loadOverrides();
-          o[h.id] = o[h.id] || {};
-          o[h.id].excluded = !e.target.checked;
-          saveOverrides(o);
-          refreshSelection();
-        });
+        row.querySelector("input").addEventListener("change",
+          e => setHotelsExcluded([h.id], !e.target.checked));
         group.appendChild(row);
       }
       box.appendChild(group);
@@ -406,20 +431,19 @@
       $("boxCount").innerHTML = `${ids.length} 件を選択 <span class="ja">已圈選 ${ids.length} 家</span>`;
     });
     const applyBox = excluded => {
-      const ov = loadOverrides();
-      for (const id of boxIds) {
-        ov[id] = ov[id] || {};
-        ov[id].excluded = excluded;
-      }
-      saveOverrides(ov);
+      const ids = boxIds;
       setBoxMode(false);   // 適用後はモードを抜ける（連続適用より誤操作防止を優先）
-      refreshSelection();
+      setHotelsExcluded(ids, excluded);
     };
     $("boxSelectBtn").addEventListener("click",
       () => setBoxMode(!$("boxSelectBtn").classList.contains("active")));
     $("boxInclude").addEventListener("click", () => applyBox(false));
     $("boxExclude").addEventListener("click", () => applyBox(true));
     $("boxCancel").addEventListener("click", () => setBoxMode(false));
+
+    const allIds = () => HOTELS.map(h => h.id);
+    $("pickAll").addEventListener("click", () => setHotelsExcluded(allIds(), false));
+    $("pickNone").addEventListener("click", () => setHotelsExcluded(allIds(), true));
 
     $("calcBtn").addEventListener("click", calculate);
     $("printBtn").addEventListener("click", () => window.print());

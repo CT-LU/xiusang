@@ -6,7 +6,7 @@
 <title>成田空港 欠航時ホテル・バス手配 | 成田機場停飛住宿分配</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<link rel="stylesheet" href="css/style.css?v=20260806j">
+<link rel="stylesheet" href="css/style.css?v=20260806k">
 </head>
 <body>
 
@@ -79,6 +79,11 @@
 
     <div class="hotel-picker">
       <h3>使用ホテル選択 <span class="ja">勾選參與分配的飯店（地圖上點標記也可切換）</span></h3>
+      <div class="picker-tools">
+        <span id="pickCount"></span>
+        <button type="button" id="pickAll">全選択 <span class="ja">全選</span></button>
+        <button type="button" id="pickNone">全解除 <span class="ja">全不選</span></button>
+      </div>
       <div id="hotelPicker"></div>
     </div>
   </aside>
@@ -150,11 +155,11 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="js/hotels-data.js?v=20260806j"></script>
-<script src="js/i18n.js?v=20260806j"></script>
-<script src="js/allocator.js?v=20260806j"></script>
-<script src="js/rakuten-api.js?v=20260806j"></script>
-<script src="js/map.js?v=20260806j"></script>
-<script src="js/app.js?v=20260806j"></script>
+<script src="js/hotels-data.js?v=20260806k"></script>
+<script src="js/i18n.js?v=20260806k"></script>
+<script src="js/allocator.js?v=20260806k"></script>
+<script src="js/rakuten-api.js?v=20260806k"></script>
+<script src="js/map.js?v=20260806k"></script>
+<script src="js/app.js?v=20260806k"></script>
 </body>
 </html>

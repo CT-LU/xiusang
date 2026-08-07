@@ -58,8 +58,19 @@ button.primary .ja { color: #f5c6c5; }
 /* ホテル選択パネル */
 .hotel-picker { margin-top: 14px; border-top: 1px solid #e0e0e0; padding-top: 10px; }
 .hotel-picker h3 { margin: 0 0 8px; font-size: 0.95em; }
+/* 300px 幅では計数と2ボタンが1行に収まらないので、計数は独立行にして折返しを防ぐ */
+.picker-tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+#pickCount { flex: 1 1 100%; font-size: 0.8em; color: #5f6368; }
+#pickCount .ja { display: inline; margin-left: 4px; }
+.picker-tools button { padding: 3px 10px; border: 1px solid #dadce0; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.8em; white-space: nowrap; }
+.picker-tools button:hover { background: #f1f3f4; }
+.picker-tools button .ja { display: inline; margin-left: 3px; color: #5f6368; }
 .picker-group { margin-bottom: 8px; }
-.picker-zone { font-weight: bold; font-size: 0.85em; color: #1a2b4a; background: #eef1f6; padding: 4px 8px; border-radius: 4px; margin-bottom: 4px; }
+/* 見出し自体がその圏の一括チェックボックス。.form-panel label より詳細度を上げる */
+.form-panel label.picker-zone { display: flex; align-items: center; gap: 6px; font-weight: bold; font-size: 0.85em; color: #1a2b4a; background: #eef1f6; padding: 4px 8px; border-radius: 4px; margin-bottom: 4px; cursor: pointer; }
+.form-panel label.picker-zone input { width: auto; margin: 0; flex-shrink: 0; }
+.picker-zone-name { flex: 1; min-width: 0; }
+.picker-zone-count { font-weight: normal; color: #5f6368; flex-shrink: 0; }
 .picker-zone .ja { display: inline; margin-left: 6px; }
 .picker-row { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; padding: 3px 4px; border-radius: 4px; }
 .picker-row:hover { background: #f1f3f4; }
