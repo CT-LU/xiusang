@@ -33,12 +33,17 @@ const MapView = (() => {
     return true;
   }
 
+  /**
+   * line   = 空港からの接続線の色
+   * stroke = 円の輪郭（白フチで地図タイルから浮かせる）
+   * fill   = 円の塗り / minRadius = 未割当時の半径
+   */
   const STYLE = {
-    assigned: { color: "#188038", fillOpacity: 0.75, dashArray: null },
-    phone:    { color: "#f9ab00", fillOpacity: 0.75, dashArray: null },
-    zero:     { color: "#9aa0a6", fillOpacity: 0.6,  dashArray: null },
-    excluded: { color: "#d93025", fillOpacity: 0.15, dashArray: "4 3" },
-    outrange: { color: "#9aa0a6", fillOpacity: 0.1,  dashArray: "2 4" }
+    assigned: { line: "#188038", stroke: "#ffffff", fill: "#188038", fillOpacity: 0.9,  weight: 2,   dashArray: null,  minRadius: 8 },
+    phone:    { line: "#f9ab00", stroke: "#ffffff", fill: "#f9ab00", fillOpacity: 0.95, weight: 2,   dashArray: null,  minRadius: 8 },
+    zero:     { line: "#455a64", stroke: "#ffffff", fill: "#455a64", fillOpacity: 0.95, weight: 2,   dashArray: null,  minRadius: 8 },
+    excluded: { line: "#d93025", stroke: "#d93025", fill: "#d93025", fillOpacity: 0.2,  weight: 2.5, dashArray: "4 3", minRadius: 8 },
+    outrange: { line: "#78909c", stroke: "#607d8b", fill: "#b0bec5", fillOpacity: 0.55, weight: 2,   dashArray: "3 3", minRadius: 7 }
   };
 
   function styleOf(item) {
@@ -92,13 +97,13 @@ const MapView = (() => {
       const pax = item.asg ? item.asg.totalPax : 0;
       if (pax > 0) {
         L.polyline([[AIRPORT_CENTER.lat, AIRPORT_CENTER.lng], [h.lat, h.lng]], {
-          color: s.color, weight: Math.min(10, 1 + pax / 40), opacity: 0.5
+          color: s.line, weight: Math.min(10, 1 + pax / 40), opacity: 0.5
         }).addTo(overlay);
       }
       L.circleMarker([h.lat, h.lng], {
-        radius: pax > 0 ? Math.min(26, 7 + Math.sqrt(pax) * 1.3) : 5,
-        color: s.color, fillColor: s.color, fillOpacity: s.fillOpacity,
-        weight: 2, dashArray: s.dashArray
+        radius: pax > 0 ? Math.min(26, 7 + Math.sqrt(pax) * 1.3) : s.minRadius,
+        color: s.stroke, fillColor: s.fill, fillOpacity: s.fillOpacity,
+        weight: s.weight, dashArray: s.dashArray
       }).addTo(overlay)
         .bindTooltip(`${h.nameJa}（${pax}名）`, { direction: "top" })
         .bindPopup(popupHtml(item), { maxWidth: 300 });

@@ -92,10 +92,14 @@ button.primary .ja { color: #f5c6c5; }
 .map-panel.collapsed #map, .map-panel.collapsed .legend { display: none; }
 .map-unavailable { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #5f6368; }
 .legend { display: flex; gap: 16px; flex-wrap: wrap; padding: 8px 12px; font-size: 0.85em; }
-.dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; margin-right: 4px; }
-.dot.green { background: #188038; } .dot.amber { background: #f9ab00; } .dot.grey { background: #9aa0a6; }
-.dot.red-dash { background: transparent; border: 2px dashed #d93025; }
-.dot.grey-dash { background: transparent; border: 2px dashed #9aa0a6; }
+.dot { width: 13px; height: 13px; border-radius: 50%; display: inline-block; margin-right: 4px; vertical-align: -2px; }
+/* 地図のマーカーと同じ白フチ＋影で見分けやすくする */
+.dot.green, .dot.amber, .dot.grey { border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+.dot.green { background: #188038; } .dot.amber { background: #f9ab00; } .dot.grey { background: #455a64; }
+.dot.red-dash { background: rgba(217,48,37,.2); border: 2px dashed #d93025; }
+.dot.grey-dash { background: #b0bec5; border: 2px dashed #607d8b; }
+/* マーカーを地図タイルから浮かせる */
+.leaflet-overlay-pane path { filter: drop-shadow(0 1px 2px rgba(0,0,0,.4)); }
 .terminal-icon { font-size: 22px; text-align: center; line-height: 28px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
 .popup .ja { display: inline; margin-left: 4px; }
 
