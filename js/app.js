@@ -163,10 +163,141 @@
     }));
   }
 
-  /** 印刷用：ホテルごと 1 ページの乗車名簿ヘッダ */
-  function renderPrintSheets(result) {
+  function nowStamp() {
+    const d = new Date(), p = n => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+
+  /** 発車帯：初便〜最終便の T+ 分（1便なら 1 つだけ） */
+  function departSpan(asg) {
+    const bs = asg.busBatches;
+    if (!bs.length) return "—";
+    const first = bs[0].departOffsetMin, last = bs[bs.length - 1].departOffsetMin;
+    return first === last ? `T+${first}` : `T+${first}〜+${last}`;
+  }
+
+  /**
+   * 印刷 1 枚目：本社報告用サマリ。
+   * 「何名をどこへ・バス何台・いつ終わる・何が未解決か」を 1 ページに集約する。
+   * 便名と配車開始時刻 T の実時刻は入力項目に無いため手書き欄とする。
+   */
+  function overviewSheet(result, input, zone) {
+    const rows = [...result.assignments]
+      .filter(a => a.totalPax > 0)
+      .sort((a, b) => a.hotel.driveMinutes - b.hotel.driveMinutes || b.totalPax - a.totalPax);
+    const risks = result.validation.filter(v => v.severity !== "info");
+    const u = result.unassigned;
+    const unplaced = u.crew + u.accessible + u.familyPax + u.economy;
+    const famPax = Allocator.buildFamilySizes(input.familyGroups, input.familyAvgSize)
+      .reduce((a, b) => a + b, 0);
+    const sum = pool => rows.reduce((a, r) => a + r.breakdown[pool].pax, 0);
+
+    const div = document.createElement("div");
+    div.className = "print-sheet print-overview";
+    div.innerHTML = `
+      <div class="ov-head">
+        <h2>欠航対応 ホテル・バス配分計画（概要）<small>停飛住宿・巴士分配計劃總覽</small></h2>
+        <div class="ov-stamp">成田空港 NRT<br>作成 ${nowStamp()}</div>
+      </div>
+
+      <table class="ov-cond">
+        <tr>
+          <th>便名 / 航班</th><td class="fill"></td>
+          <th>宿泊日 / 住宿日</th><td>${input.checkinDate}</td>
+          <th>配車開始 T / 發車起點</th><td class="fill">　　時　　分</td>
+        </tr>
+        <tr>
+          <th>総旅客 / 總旅客</th><td>${input.totalPax}名</td>
+          <th>内 C・F</th><td>${input.premiumPax}名</td>
+          <th>乗務員 / 組員</th><td>${input.crewCount}名</td>
+        </tr>
+        <tr>
+          <th>家族 / 家庭</th><td>${input.familyGroups}組 ${famPax}名</td>
+          <th>車椅子 / 無障礙</th><td>${input.wheelchairPax}名</td>
+          <th>バス / 巴士</th><td>${input.busCapacity}名 × ${input.busesAvailable}台</td>
+        </tr>
+        <tr>
+          <th>手配範囲 / 範圍</th><td colspan="5">${ZONES[zone].ja}｜${ZONES[zone].zh}
+            ${rows.length}軒使用 / 使用 ${rows.length} 家</td>
+        </tr>
+      </table>
+
+      <div class="ov-kpis">
+        <div class="kpi"><b>${result.totals.pax}</b><span>手配人数 / 安置人數</span></div>
+        <div class="kpi"><b>${result.totals.rooms}</b><span>客室 / 房間數</span></div>
+        <div class="kpi"><b>${rows.length}</b><span>ホテル / 飯店</span></div>
+        <div class="kpi"><b>${result.totals.trips}</b><span>延べ車次 / 總車次</span></div>
+        <div class="kpi"><b>T+${result.totals.lastReturnMin}</b><span>最終便帰着 / 末班回程</span></div>
+        <div class="kpi ${unplaced ? "kpi-bad" : ""}"><b>${unplaced}</b><span>未手配 / 未安置</span></div>
+      </div>
+
+      <h3>要確認・リスク <span class="ja">待確認事項與風險</span></h3>
+      <ul class="ov-risks">
+        ${risks.length
+          ? risks.map(v => {
+              const m = I18N.t(v.code, v.params);
+              return `<li class="risk-${v.severity}"><b>${v.severity === "error" ? "要対応" : "注意"}</b>
+                ${m.ja}<br><span class="zh">${m.zh}</span></li>`;
+            }).join("")
+          : `<li class="risk-none">特記事項なし（全員手配済み）<br><span class="zh">無特別事項，全員安置完成</span></li>`}
+      </ul>
+
+      <h3>ホテル別 配分一覧 <span class="ja">各飯店分配明細</span></h3>
+      <table class="ov-table${rows.length > 9 ? " dense" : ""}">
+        <thead>
+          <tr>
+            <th class="l">ホテル / 飯店</th><th>車程</th><th>乗務員</th><th>C・F</th>
+            <th>家族</th><th>車椅子</th><th>一般</th><th>計（名/室）</th>
+            <th>バス</th><th>発車 T+分</th><th class="l">TEL</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(a => {
+            const b = a.breakdown;
+            return `<tr>
+              <td class="l">${a.hotel.nameJa}${a.hotel.crewDesignated ? " <small>（乗務員指定）</small>" : ""}</td>
+              <td>${a.hotel.driveMinutes}分</td>
+              <td>${b.crew.pax || ""}</td>
+              <td>${b.premium.pax || ""}</td>
+              <td>${b.family.groups ? `${b.family.groups}組${b.family.pax}名` : ""}</td>
+              <td>${b.accessible.pax || ""}</td>
+              <td>${b.economy.pax || ""}</td>
+              <td class="strong">${a.totalPax} / ${a.totalRooms}</td>
+              <td>${a.busCount || ""}</td>
+              <td>${departSpan(a)}</td>
+              <td class="l tel">${a.hotel.phone}</td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th class="l">合計 / 總計</th><th></th>
+            <th>${sum("crew")}</th><th>${sum("premium")}</th>
+            <th>${rows.reduce((a, r) => a + r.breakdown.family.groups, 0)}組${sum("family")}名</th>
+            <th>${sum("accessible")}</th><th>${sum("economy")}</th>
+            <th class="strong">${result.totals.pax} / ${result.totals.rooms}</th>
+            <th>${result.totals.trips}車次</th><th>T+${result.totals.lastReturnMin}帰着</th><th></th>
+          </tr>
+        </tfoot>
+      </table>
+
+      <p class="ov-note">
+        ※「T+分」は配車開始時刻 T からの経過分。室数・空室は電話確認前の計画値です。
+        <span class="zh">※「T+分」為發車起點 T 起算的分鐘數；房數與空房為電話確認前的計劃值。</span>
+      </p>
+
+      <table class="ov-sign">
+        <tr><th>作成 / 製表</th><th>現場責任者 / 現場負責</th><th>本社確認 / 總部確認</th></tr>
+        <tr><td></td><td></td><td></td></tr>
+      </table>`;
+    return div;
+  }
+
+  /** 印刷用：1 枚目に本社報告用サマリ、以降はホテルごと 1 ページの乗車名簿ヘッダ */
+  function renderPrintSheets(result, input, zone) {
     const box = $("printSheets");
     box.innerHTML = "";
+    box.appendChild(overviewSheet(result, input, zone));
     for (const asg of result.assignments) {
       if (asg.totalPax === 0) continue;
       const div = document.createElement("div");
@@ -265,7 +396,7 @@
     lastResult.usedZone = zone;
     renderValidation(lastResult);
     renderTable(lastResult);
-    renderPrintSheets(lastResult);
+    renderPrintSheets(lastResult, input, zone);
     renderPicker(zone);
     MapView.update(mapItems(lastResult, zone));
     probeAndUpdate(lastResult, input.checkinDate); // 非阻塞
@@ -447,6 +578,12 @@
 
     $("calcBtn").addEventListener("click", calculate);
     $("printBtn").addEventListener("click", () => window.print());
+    // 本社への報告は概要 1 枚で足りるため、名簿を省く印刷も用意する
+    $("printOverviewBtn").addEventListener("click", () => {
+      document.body.classList.add("overview-only");
+      window.print();
+    });
+    window.addEventListener("afterprint", () => document.body.classList.remove("overview-only"));
     $("saveKeyBtn").addEventListener("click", testApiKey);
     $("rangeZone").addEventListener("change", refreshSelection);
     $("autoExpand").addEventListener("change", () => { if (lastResult) calculate(); });

@@ -53,7 +53,7 @@ button.primary {
   background: #c5221f; color: #fff; font-size: 1.1em; font-weight: bold;
 }
 button.primary .ja { color: #f5c6c5; }
-#printBtn { width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 6px; background: #fff; cursor: pointer; }
+#printBtn, #printOverviewBtn { width: 100%; padding: 8px; margin-bottom: 6px; border: 1px solid #dadce0; border-radius: 6px; background: #fff; cursor: pointer; }
 
 /* ホテル選択パネル */
 .hotel-picker { margin-top: 14px; border-top: 1px solid #e0e0e0; padding-top: 10px; }
@@ -163,13 +163,67 @@ button.primary .ja { color: #f5c6c5; }
   header { flex-direction: column; align-items: flex-start; }
 }
 
-/* ============ 印刷：ホテルごと 1 ページの乗車名簿 ============ */
+/* ============ 印刷：1 枚目＝本社報告用概要、以降＝ホテルごとの乗車名簿 ============ */
 #printSheets { display: none; }
 @media print {
+  body { background: #fff; } /* 画面用の灰色背景を印刷に持ち込まない */
   body > header, body > main, .validation-band, .table-panel { display: none !important; }
   #printSheets { display: block; }
   .print-sheet { page-break-after: always; padding: 20mm 10mm 0; font-size: 12pt; }
   .print-sheet h2 { border-bottom: 2px solid #000; padding-bottom: 4px; }
   .print-batches { border-collapse: collapse; width: 100%; margin-top: 8mm; }
   .print-batches th, .print-batches td { border: 1px solid #000; padding: 6mm 4mm; text-align: center; }
+
+  /* 「概要のみ印刷」＝本社へは 1 枚だけ送る */
+  body.overview-only .print-sheet { display: none; }
+  body.overview-only .print-overview { display: block; page-break-after: auto; }
+
+  /* ---- 概要ページ（A4 縦 1 枚に収める前提の詰めた指定）---- */
+  .print-overview {
+    padding: 12mm 10mm 0; font-size: 9.5pt;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .print-overview .ja, .print-overview .zh { display: inline; color: #333; font-size: 0.88em; }
+  .ov-head { display: flex; justify-content: space-between; align-items: flex-end;
+             border-bottom: 2px solid #000; padding-bottom: 2mm; }
+  .ov-head h2 { border: 0; margin: 0; padding: 0; font-size: 15pt; }
+  .ov-head h2 small { display: block; font-size: 9.5pt; font-weight: normal; }
+  .ov-stamp { text-align: right; font-size: 8.5pt; line-height: 1.4; white-space: nowrap; }
+
+  .ov-cond { width: 100%; border-collapse: collapse; margin-top: 4mm; }
+  .ov-cond th, .ov-cond td { border: 1px solid #000; padding: 1.5mm 2mm; font-size: 8.5pt; text-align: left; }
+  .ov-cond th { background: #eaeaea; white-space: nowrap; width: 1%; }
+  .ov-cond td.fill { min-width: 30mm; }
+
+  .ov-kpis { display: flex; gap: 2mm; margin-top: 4mm; }
+  .ov-kpis .kpi { flex: 1; border: 1px solid #000; padding: 2mm 1mm; text-align: center; }
+  .ov-kpis .kpi b { display: block; font-size: 15pt; line-height: 1.1; }
+  .ov-kpis .kpi span { font-size: 7pt; }
+  .ov-kpis .kpi-bad { border-width: 2.5px; background: #e2e2e2; }
+
+  .print-overview h3 { font-size: 10.5pt; margin: 5mm 0 1.5mm; border-bottom: 1px solid #000; padding-bottom: 1mm; }
+  .ov-risks { margin: 0; padding-left: 5mm; font-size: 8.5pt; line-height: 1.35; }
+  .ov-risks li { margin-bottom: 1mm; }
+  .ov-risks b { display: inline-block; border: 1px solid #000; padding: 0 1mm; margin-right: 1.5mm; font-size: 7.5pt; }
+  .ov-risks .risk-error b { background: #000; color: #fff; }
+  .ov-risks .risk-none { list-style: none; margin-left: -5mm; }
+
+  .ov-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+  .ov-table th, .ov-table td { border: 1px solid #000; padding: 1.2mm 1mm; text-align: center; }
+  .ov-table .l { text-align: left; }
+  .ov-table thead { display: table-header-group; } /* ホテルが多く2枚目に跨いでも見出しを再掲 */
+  .ov-table tfoot { display: table-row-group; }    /* 合計は最終行に1回だけ（各頁末に再掲すると誤読される） */
+  .ov-table thead th, .ov-table tfoot th { background: #eaeaea; }
+  .ov-table thead th, .ov-table .tel { white-space: nowrap; }
+  .ov-table .strong { font-weight: bold; }
+  .ov-table small { font-size: 7pt; }
+  /* ホテルが多い場合でも概要は1枚に収める */
+  .ov-table.dense { font-size: 7.4pt; }
+  .ov-table.dense th, .ov-table.dense td { padding: 0.7mm 0.8mm; }
+  .ov-table.dense small { font-size: 6.2pt; }
+
+  .ov-note { font-size: 7.5pt; margin: 2mm 0 0; line-height: 1.35; }
+  .ov-sign { width: 100%; border-collapse: collapse; margin-top: 4mm; }
+  .ov-sign th { border: 1px solid #000; background: #eaeaea; font-size: 8pt; padding: 1.2mm; }
+  .ov-sign td { border: 1px solid #000; height: 15mm; }
 }
