@@ -65,6 +65,20 @@ const DEFAULTS = {
   occupancy: { economy: 2, premium: 1, crew: 1, familyMaxPerRoom: 4 }
 };
 
+/**
+ * 費用予測の既定単価（円・税サービス料込み）。すべて運用判断で要調整。
+ *
+ * 宿泊費は「① 手動上書き → ② 楽天の実勢価格 → ③ 下記 tier 既定値」の優先順で決まる。
+ * ③ はオフライン時の退路であり、欠航当日は需要急増で実勢価格がこれを上回ることが多い。
+ * バス・食事は公開 API が無いため常に手動値（貸切バスは時間・距離制の契約単価を入力すること）。
+ */
+const COST_DEFAULTS = {
+  roomByTier: { 1: 18000, 2: 13000, 3: 9000 }, // 1室1泊
+  busPerTrip: 45000,   // 貸切バス 1車次（空港→ホテル往復・待機含む）
+  mealPerPax: 3000,    // 1名あたり（夕食＋朝食）
+  contingencyPct: 5    // 雑費・予備費（小計に対する％）
+};
+
 /** 楽天 geo 備援検索の円心（searchRadius 上限 3km 対応、各エリアをカバー） */
 const GEO_SEARCH_CENTERS = [
   { name: "空港エリア",       lat: 35.7700, lng: 140.3680 },

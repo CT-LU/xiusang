@@ -55,6 +55,14 @@ button.primary {
 button.primary .ja { color: #f5c6c5; }
 #printBtn, #printOverviewBtn { width: 100%; padding: 8px; margin-bottom: 6px; border: 1px solid #dadce0; border-radius: 6px; background: #fff; cursor: pointer; }
 
+/* 費用単価 */
+.cost-fields { border: 1px solid #e0e0e0; border-radius: 6px; padding: 8px 10px 2px; margin: 0 0 12px; }
+.cost-fields legend { font-size: 0.85em; font-weight: 600; padding: 0 4px; }
+.cost-fields legend .ja { display: inline; margin-left: 4px; }
+.cost-hint { margin: 0 0 8px; font-size: 0.78em; color: #5f6368; line-height: 1.4; }
+.cost-hint .ja { display: block; }
+.cost-fields label { font-size: 0.9em; }
+
 /* ホテル選択パネル */
 .hotel-picker { margin-top: 14px; border-top: 1px solid #e0e0e0; padding-top: 10px; }
 .hotel-picker h3 { margin: 0 0 8px; font-size: 0.95em; }
@@ -141,7 +149,7 @@ button.primary .ja { color: #f5c6c5; }
 /* ============ 結果表 ============ */
 .table-panel { padding: 14px; min-width: 0; }
 .table-scroll { overflow-x: auto; }
-#resultTable { border-collapse: collapse; width: 100%; min-width: 1080px; }
+#resultTable { border-collapse: collapse; width: 100%; min-width: 1240px; }
 #resultTable th, #resultTable td { border: 1px solid #e0e0e0; padding: 6px 8px; text-align: center; vertical-align: middle; }
 #resultTable thead th { background: #f1f3f4; position: sticky; top: 0; }
 #resultTable .hotel-name { text-align: left; font-weight: 600; white-space: nowrap; }
@@ -152,6 +160,9 @@ button.primary .ja { color: #f5c6c5; }
 #resultTable tr.zero td { color: #9aa0a6; }
 #resultTable tr.excluded td { color: #c0c0c0; background: #fafafa; }
 #resultTable .ov-rooms { width: 64px; padding: 4px; text-align: right; }
+#resultTable .ov-rate { width: 78px; padding: 4px; text-align: right; }
+#resultTable .ov-rate + br + small { color: #5f6368; font-size: 0.75em; }
+#resultTable .cost-cell { white-space: nowrap; text-align: right; }
 #resultTable tfoot th { background: #f1f3f4; text-align: left; padding: 8px; }
 .vac-cell small { color: #5f6368; }
 .footnote { color: #5f6368; font-size: 0.85em; margin: 10px 0 0; }
@@ -221,6 +232,17 @@ button.primary .ja { color: #f5c6c5; }
   .ov-table.dense { font-size: 7.4pt; }
   .ov-table.dense th, .ov-table.dense td { padding: 0.7mm 0.8mm; }
   .ov-table.dense small { font-size: 6.2pt; }
+
+  .ov-table .money { text-align: right; white-space: nowrap; }
+  .ov-table .money small { display: block; line-height: 1; color: #333; font-weight: normal; }
+
+  .ov-cost { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  .ov-cost th, .ov-cost td { border: 1px solid #000; padding: 1.5mm 2mm; text-align: right; }
+  .ov-cost thead th { background: #eaeaea; text-align: center; font-size: 8pt; }
+  .ov-cost thead th small { display: block; font-weight: normal; font-size: 7pt; }
+  .ov-cost tbody td { font-size: 10pt; }
+  .ov-cost .grand { background: #eaeaea; font-weight: bold; font-size: 12pt; }
+  .ov-cost thead .grand { font-size: 8pt; }
 
   .ov-note { font-size: 7.5pt; margin: 2mm 0 0; line-height: 1.35; }
   .ov-sign { width: 100%; border-collapse: collapse; margin-top: 4mm; }

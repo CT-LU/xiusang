@@ -247,6 +247,48 @@ const Allocator = (() => {
     return result;
   }
 
+  // ============================ 費用予測 ============================
+
+  /**
+   * 分配結果 × 単価 → 概算費用。分配そのものには影響しない後段の集計。
+   * @param {object} result allocate() の戻り値
+   * @param {object} rates  {
+   *   roomUnit: { [hotelId]: { amount, source } },  // source: manual | rakuten | tier
+   *   busPerTrip, mealPerPax, contingencyPct
+   * }
+   * 宿泊は「1室単価 × 割当室数」。バスは車次（往復1回）単位、食事は手配人数（乗務員含む）単位。
+   */
+  function estimateCost(result, rates) {
+    const byHotel = [];
+    let roomAmount = 0;
+    for (const a of result.assignments) {
+      if (a.totalRooms <= 0) continue;
+      const u = (rates.roomUnit && rates.roomUnit[a.hotelId]) || { amount: 0, source: "tier" };
+      const amount = Math.max(0, u.amount | 0) * a.totalRooms;
+      roomAmount += amount;
+      byHotel.push({ hotelId: a.hotelId, rooms: a.totalRooms, unit: u.amount | 0, source: u.source, amount });
+    }
+    const bus = {
+      trips: result.totals.trips, unit: rates.busPerTrip | 0,
+      amount: result.totals.trips * Math.max(0, rates.busPerTrip | 0)
+    };
+    const meal = {
+      pax: result.totals.pax, unit: rates.mealPerPax | 0,
+      amount: result.totals.pax * Math.max(0, rates.mealPerPax | 0)
+    };
+    const subtotal = roomAmount + bus.amount + meal.amount;
+    const pct = Math.max(0, rates.contingencyPct || 0);
+    const contingency = { pct, amount: Math.round(subtotal * pct / 100) };
+    const total = subtotal + contingency.amount;
+    return {
+      room: { amount: roomAmount, byHotel },
+      bus, meal, contingency, subtotal, total,
+      perPax: result.totals.pax > 0 ? Math.round(total / result.totals.pax) : 0,
+      // 単価の出所内訳（報告書に「何軒が推定値のままか」を出すため）
+      sources: byHotel.reduce((acc, r) => { acc[r.source] = (acc[r.source] || 0) + 1; return acc; }, {})
+    };
+  }
+
   // ============================ 自己検証 ============================
 
   function mockHotel(id, over) {
@@ -395,6 +437,30 @@ const Allocator = (() => {
       ok(all.ok, "T8b: 全域でも 4200 名を収容できない");
       conservationCheck("T8b", input, HOTELS, all, failures);
     }
+    // 9. 費用予測：内訳の合算と予備費が一致する
+    {
+      const hotels = [mockHotel("h", { usableRooms: 100, driveMinutes: 10 })];
+      const input = baseInput({ totalPax: 100, busCapacity: 50, busesAvailable: 4 });
+      const r = allocate(input, hotels);
+      const c = estimateCost(r, {
+        roomUnit: { h: { amount: 10000, source: "tier" } },
+        busPerTrip: 40000, mealPerPax: 3000, contingencyPct: 10
+      });
+      // 100名/2名1室 = 50室 → 50万、車次 2 → 8万、食事 100名 → 30万
+      ok(c.room.amount === 500000, `T9: 宿泊費 ${c.room.amount} ≠ 500000`);
+      ok(c.bus.amount === r.totals.trips * 40000, `T9: バス費 ${c.bus.amount} が車次×単価と不一致`);
+      ok(c.meal.amount === 300000, `T9: 食事代 ${c.meal.amount} ≠ 300000`);
+      ok(c.subtotal === c.room.amount + c.bus.amount + c.meal.amount, "T9: 小計が内訳合計と不一致");
+      ok(c.contingency.amount === Math.round(c.subtotal * 0.1), "T9: 予備費が小計の10%でない");
+      ok(c.total === c.subtotal + c.contingency.amount, "T9: 総額が小計＋予備費と不一致");
+      ok(c.perPax === Math.round(c.total / 100), `T9: 1名あたり ${c.perPax} が総額/人数と不一致`);
+    }
+    // 9b. 単価ゼロ・空結果でも壊れない（オフラインで単価未設定のケース）
+    {
+      const r = allocate(baseInput({}), HOTELS);
+      const c = estimateCost(r, { roomUnit: {}, busPerTrip: 0, mealPerPax: 0, contingencyPct: 5 });
+      ok(c.total === 0 && c.perPax === 0, "T9b: 全ゼロ入力で費用が 0 にならない");
+    }
     // 8. 入力矛盾（内訳 > 総数）
     {
       const r = allocate(baseInput({ totalPax: 10, premiumPax: 20 }), HOTELS);
@@ -407,5 +473,5 @@ const Allocator = (() => {
     return { passed, failures };
   }
 
-  return { allocate, runSelfTests, buildFamilySizes };
+  return { allocate, estimateCost, runSelfTests, buildFamilySizes };
 })();

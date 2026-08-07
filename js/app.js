@@ -9,6 +9,7 @@
 
   let lastResult = null;
   let probeSeq = 0; // 古い非同期照会が新しい計算結果を上書きしないためのトークン
+  let liveCharges = {}; // 楽天から取れた実勢価格 { hotelId: {min, max} }（日付依存のため永続化しない）
 
   // ---------- ホテル上書き（除外・可用室数）の保存 ----------
   function loadOverrides() {
@@ -79,6 +80,42 @@
     };
   }
 
+  // ---------- 費用単価 ----------
+  /**
+   * 1室単価の決定：① 手動上書き → ② 楽天実勢 → ③ tier 既定値。
+   * ② は「プラン最高値」を採る。最安値（hotelMinCharge）で見積もると本社報告が下振れするため、
+   * 実際に押さえられる高位で保守的に置く。
+   */
+  function roomUnitFor(hotel, ov) {
+    const o = ov[hotel.id];
+    if (o && o.roomRate !== undefined && o.roomRate !== null && o.roomRate !== "")
+      return { amount: Math.max(0, o.roomRate | 0), source: "manual" };
+    const c = liveCharges[hotel.id];
+    if (c && (c.max || c.min))
+      return { amount: Math.max(c.max || 0, c.min || 0), source: "rakuten" };
+    return { amount: COST_DEFAULTS.roomByTier[hotel.tier] || 0, source: "tier" };
+  }
+
+  const RATE_MARK = { manual: "✏手動", rakuten: "✓楽天", tier: "※推定" };
+
+  function readRates(result) {
+    const ov = loadOverrides();
+    const roomUnit = {};
+    for (const a of result.assignments) roomUnit[a.hotelId] = roomUnitFor(a.hotel, ov);
+    const num = (id, def) => {
+      const v = parseInt($(id).value, 10);
+      return Number.isFinite(v) && v >= 0 ? v : def;
+    };
+    return {
+      roomUnit,
+      busPerTrip: num("busPerTrip", COST_DEFAULTS.busPerTrip),
+      mealPerPax: num("mealPerPax", COST_DEFAULTS.mealPerPax),
+      contingencyPct: num("contingencyPct", COST_DEFAULTS.contingencyPct)
+    };
+  }
+
+  const yen = n => "¥" + Math.round(n || 0).toLocaleString("ja-JP");
+
   // ---------- 描画 ----------
   function bilingual(msg) {
     return `<span class="zh">${msg.zh}</span><span class="ja">${msg.ja}</span>`;
@@ -113,10 +150,17 @@
     // 除外中のホテルも設定行として表示する
     const excluded = HOTELS.filter(h => ov[h.id] && ov[h.id].excluded);
 
+    const costByHotel = {};
+    if (result.cost) for (const c of result.cost.room.byHotel) costByHotel[c.hotelId] = c;
+
     const mk = (asg, hotel, isExcluded) => {
       const h = hotel;
       const b = asg ? asg.breakdown : null;
       const vac = I18N.vacancyLabel(asg ? asg.vacancyTier : null);
+      const cost = asg ? costByHotel[asg.hotelId] : null;
+      const auto = roomUnitFor(h, ov);
+      const manualRate = ov[h.id] && ov[h.id].roomRate !== undefined && ov[h.id].roomRate !== null
+        ? ov[h.id].roomRate : "";
       const tr = document.createElement("tr");
       tr.className = (asg && asg.needsPhoneConfirm ? "needs-phone " : "") +
                      (isExcluded ? "excluded " : "") +
@@ -129,11 +173,13 @@
         <td>${b ? b.accessible.pax : "—"}</td>
         <td>${b ? b.economy.pax : "—"}</td>
         <td class="total-cell">${asg ? `${asg.totalPax}名 / ${asg.totalRooms}室` : "—"}</td>
+        <td class="cost-cell">${cost ? yen(cost.amount) : "—"}</td>
         <td class="vac-cell">${vac.zh}<br><small>${vac.ja}</small>${asg && asg.needsPhoneConfirm ? '<br><span class="warn-text">⚠ 要電話</span>' : ""}</td>
         <td>${asg && asg.busCount ? asg.busCount + "台" : "—"}</td>
         <td class="batches">${asg ? batchesText(asg) : ""}</td>
         <td><a href="tel:${h.phone}">${h.phone}</a><br><small>${h.phoneVerified ? "✓楽天" : "※要確認"}</small></td>
         <td><input type="number" class="ov-rooms" data-id="${h.id}" min="0" value="${(ov[h.id] && ov[h.id].usableRooms !== undefined) ? ov[h.id].usableRooms : h.usableRooms}"></td>
+        <td><input type="number" class="ov-rate" data-id="${h.id}" min="0" step="1000" value="${manualRate}" placeholder="${auto.amount}"><br><small>${RATE_MARK[auto.source]}</small></td>
         <td><input type="checkbox" class="ov-exclude" data-id="${h.id}" ${isExcluded ? "checked" : ""}></td>`;
       return tr;
     };
@@ -143,13 +189,24 @@
 
     $("totCell").innerHTML =
       `${result.totals.pax}名 / ${result.totals.rooms}室 ・ 延べ${result.totals.trips}車次 ・ ` +
-      `最終便帰着 T+${result.totals.lastReturnMin}分`;
+      `最終便帰着 T+${result.totals.lastReturnMin}分` +
+      (result.cost ? ` ・ <b>概算費用 ${yen(result.cost.total)}</b>（1名 ${yen(result.cost.perPax)}）` : "");
 
     tbody.querySelectorAll(".ov-rooms").forEach(el => el.addEventListener("change", () => {
       const ov = loadOverrides();
       const id = el.dataset.id;
       ov[id] = ov[id] || {};
       ov[id].usableRooms = Math.max(0, parseInt(el.value, 10) || 0);
+      saveOverrides(ov);
+      calculate();
+    }));
+    // 空欄に戻すと自動単価（楽天実勢 → tier 既定値）に復帰する
+    tbody.querySelectorAll(".ov-rate").forEach(el => el.addEventListener("change", () => {
+      const ov = loadOverrides();
+      const id = el.dataset.id;
+      ov[id] = ov[id] || {};
+      if (el.value === "") delete ov[id].roomRate;
+      else ov[id].roomRate = Math.max(0, parseInt(el.value, 10) || 0);
       saveOverrides(ov);
       calculate();
     }));
@@ -181,7 +238,8 @@
    * 「何名をどこへ・バス何台・いつ終わる・何が未解決か」を 1 ページに集約する。
    * 便名と配車開始時刻 T の実時刻は入力項目に無いため手書き欄とする。
    */
-  function overviewSheet(result, input, zone) {
+  function overviewSheet(result) {
+    const input = result.input, zone = result.usedZone;
     const rows = [...result.assignments]
       .filter(a => a.totalPax > 0)
       .sort((a, b) => a.hotel.driveMinutes - b.hotel.driveMinutes || b.totalPax - a.totalPax);
@@ -191,6 +249,9 @@
     const famPax = Allocator.buildFamilySizes(input.familyGroups, input.familyAvgSize)
       .reduce((a, b) => a + b, 0);
     const sum = pool => rows.reduce((a, r) => a + r.breakdown[pool].pax, 0);
+    const cost = result.cost;
+    const costByHotel = {};
+    if (cost) for (const c of cost.room.byHotel) costByHotel[c.hotelId] = c;
 
     const div = document.createElement("div");
     div.className = "print-sheet print-overview";
@@ -242,13 +303,46 @@
           : `<li class="risk-none">特記事項なし（全員手配済み）<br><span class="zh">無特別事項，全員安置完成</span></li>`}
       </ul>
 
+      ${cost ? `
+      <h3>概算費用 <span class="ja">費用預估（円・税サービス料込）</span></h3>
+      <table class="ov-cost">
+        <thead>
+          <tr>
+            <th>宿泊 ${result.totals.rooms}室</th>
+            <th>バス ${cost.bus.trips}車次<br><small>@${cost.bus.unit.toLocaleString("ja-JP")}</small></th>
+            <th>食事 ${cost.meal.pax}名<br><small>@${cost.meal.unit.toLocaleString("ja-JP")}</small></th>
+            <th>小計</th>
+            <th>雑費・予備費 ${cost.contingency.pct}%</th>
+            <th class="grand">合計</th>
+            <th>1名あたり</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>${yen(cost.room.amount)}</td>
+            <td>${yen(cost.bus.amount)}</td>
+            <td>${yen(cost.meal.amount)}</td>
+            <td>${yen(cost.subtotal)}</td>
+            <td>${yen(cost.contingency.amount)}</td>
+            <td class="grand">${yen(cost.total)}</td>
+            <td>${yen(cost.perPax)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="ov-note">
+        ※ 宿泊単価の出所：楽天実勢 ${cost.sources.rakuten || 0}軒 ／ 手動 ${cost.sources.manual || 0}軒 ／ 推定 ${cost.sources.tier || 0}軒。
+        実勢価格は一般販売の税サ込単価を保守側（予約可能プランの高位）で採用しており、航空会社の契約単価は通常これを下回ります。
+        オンライン照会は1室1名利用の価格のため、2名/室で埋める一般旅客分は上振れする可能性があります。バス・食事は手動単価です。
+        <span class="zh">※ 住宿單價來源：楽天實勢 ${cost.sources.rakuten || 0} 家／手動 ${cost.sources.manual || 0} 家／推定 ${cost.sources.tier || 0} 家。實勢價取一般散客牌價的高位（保守），航空公司契約價通常低於此；線上查詢為 1 室 1 人的價格，2 人／房的實際金額可能高於預估。巴士與餐費為手動單價。</span>
+      </p>` : ""}
+
       <h3>ホテル別 配分一覧 <span class="ja">各飯店分配明細</span></h3>
       <table class="ov-table${rows.length > 9 ? " dense" : ""}">
         <thead>
           <tr>
             <th class="l">ホテル / 飯店</th><th>車程</th><th>乗務員</th><th>C・F</th>
             <th>家族</th><th>車椅子</th><th>一般</th><th>計（名/室）</th>
-            <th>バス</th><th>発車 T+分</th><th class="l">TEL</th>
+            <th>宿泊費</th><th>バス</th><th>発車 T+分</th><th class="l">TEL</th>
           </tr>
         </thead>
         <tbody>
@@ -263,6 +357,9 @@
               <td>${b.accessible.pax || ""}</td>
               <td>${b.economy.pax || ""}</td>
               <td class="strong">${a.totalPax} / ${a.totalRooms}</td>
+              <td class="money">${costByHotel[a.hotelId]
+                ? `${yen(costByHotel[a.hotelId].amount)}<br><small>@${(costByHotel[a.hotelId].unit).toLocaleString("ja-JP")}${RATE_MARK[costByHotel[a.hotelId].source].slice(0, 1)}</small>`
+                : "—"}</td>
               <td>${a.busCount || ""}</td>
               <td>${departSpan(a)}</td>
               <td class="l tel">${a.hotel.phone}</td>
@@ -276,6 +373,7 @@
             <th>${rows.reduce((a, r) => a + r.breakdown.family.groups, 0)}組${sum("family")}名</th>
             <th>${sum("accessible")}</th><th>${sum("economy")}</th>
             <th class="strong">${result.totals.pax} / ${result.totals.rooms}</th>
+            <th class="money">${cost ? yen(cost.room.amount) : "—"}</th>
             <th>${result.totals.trips}車次</th><th>T+${result.totals.lastReturnMin}帰着</th><th></th>
           </tr>
         </tfoot>
@@ -294,10 +392,10 @@
   }
 
   /** 印刷用：1 枚目に本社報告用サマリ、以降はホテルごと 1 ページの乗車名簿ヘッダ */
-  function renderPrintSheets(result, input, zone) {
+  function renderPrintSheets(result) {
     const box = $("printSheets");
     box.innerHTML = "";
-    box.appendChild(overviewSheet(result, input, zone));
+    box.appendChild(overviewSheet(result));
     for (const asg of result.assignments) {
       if (asg.totalPax === 0) continue;
       const div = document.createElement("div");
@@ -335,8 +433,11 @@
     try {
       const hotels = result.assignments.map(a => a.hotel);
       await RakutenAPI.resolveHotelNos(hotels);
-      const tiers = await RakutenAPI.probeVacancy(hotels, checkinDate);
+      const { tiers, charges } = await RakutenAPI.probeVacancy(hotels, checkinDate);
       if (seq !== probeSeq) return; // 既に再計算済み
+      liveCharges = charges;
+      // 実勢価格が入ったので費用を引き直す（手動単価が入っているホテルはそのまま）
+      result.cost = Allocator.estimateCost(result, readRates(result));
       let withData = 0;
       for (const asg of result.assignments) {
         asg.vacancyTier = tiers[asg.hotelId];
@@ -348,10 +449,13 @@
       }
       setStatus("ok", I18N.t("api-ok"));
       renderTable(result);
+      renderPrintSheets(result);
       MapView.update(mapItems(result, result.usedZone || 3));
+      const priced = Object.keys(charges).length;
       renderValidation(result, [
         { severity: "info", code: "api-probe-done", params: { n: withData } },
-        { severity: "info", code: "vacancy-note", params: {} }
+        { severity: "info", code: "vacancy-note", params: {} },
+        ...(priced ? [{ severity: "info", code: "rate-live", params: { n: priced } }] : [])
       ]);
     } catch (e) {
       if (seq !== probeSeq) return;
@@ -394,9 +498,11 @@
 
     lastResult = result;
     lastResult.usedZone = zone;
+    lastResult.input = input; // 印刷の概要ページと楽天照会後の再描画で再利用する
+    lastResult.cost = Allocator.estimateCost(lastResult, readRates(lastResult));
     renderValidation(lastResult);
     renderTable(lastResult);
-    renderPrintSheets(lastResult, input, zone);
+    renderPrintSheets(lastResult);
     renderPicker(zone);
     MapView.update(mapItems(lastResult, zone));
     probeAndUpdate(lastResult, input.checkinDate); // 非阻塞
@@ -493,14 +599,17 @@
       totalPax: DEFAULTS.totalPax, premiumPax: DEFAULTS.premiumPax,
       familyGroups: DEFAULTS.familyGroups, familyAvgSize: DEFAULTS.familyAvgSize,
       wheelchairPax: DEFAULTS.wheelchairPax, crewCount: DEFAULTS.crewCount,
-      busCapacity: DEFAULTS.busCapacity, busesAvailable: DEFAULTS.busesAvailable
+      busCapacity: DEFAULTS.busCapacity, busesAvailable: DEFAULTS.busesAvailable,
+      busPerTrip: COST_DEFAULTS.busPerTrip, mealPerPax: COST_DEFAULTS.mealPerPax,
+      contingencyPct: COST_DEFAULTS.contingencyPct
     })) $(id).value = val;
     $("checkinDate").value = new Date().toISOString().slice(0, 10);
     $("appId").value = RakutenAPI.getAppId();
     // URL パラメータで上書き（シナリオのブックマークやテストに使用）
     const q = new URLSearchParams(location.search);
     for (const id of ["totalPax", "premiumPax", "familyGroups", "familyAvgSize",
-                      "wheelchairPax", "crewCount", "busCapacity", "busesAvailable", "rangeZone"]) {
+                      "wheelchairPax", "crewCount", "busCapacity", "busesAvailable", "rangeZone",
+                      "busPerTrip", "mealPerPax", "contingencyPct"]) {
       if (q.has(id)) $(id).value = q.get(id);
     }
     if (q.has("autoExpand")) $("autoExpand").checked = q.get("autoExpand") !== "0";
@@ -587,6 +696,10 @@
     $("saveKeyBtn").addEventListener("click", testApiKey);
     $("rangeZone").addEventListener("change", refreshSelection);
     $("autoExpand").addEventListener("change", () => { if (lastResult) calculate(); });
+    // 単価を触ったら即座に費用を引き直す（分配自体は変わらないが再計算で十分速い）
+    for (const id of ["busPerTrip", "mealPerPax", "contingencyPct"]) {
+      $(id).addEventListener("change", () => { if (lastResult) calculate(); });
+    }
     $("inputForm").addEventListener("submit", e => { e.preventDefault(); calculate(); });
 
     if (new URLSearchParams(location.search).get("selftest") === "1") {

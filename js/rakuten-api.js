@@ -148,14 +148,49 @@ const RakutenAPI = (() => {
   }
 
   /**
+   * VacantHotelSearch のレスポンスから 1室1泊あたりの価格帯を抽出（追加リクエスト不要）。
+   * min = hotelMinCharge（「1部屋1泊あたり、税・サービス料込みの最安値の目安」）
+   * max = 各プラン dailyCharge の最大値（＝実際に取れる高位。予算は保守側で見る）
+   *
+   * ※ chargeFlag=0 は「1名あたり」の額。照会は adultNum=1 のため 1室1名利用の価格であり、
+   *   2名/室で埋める一般旅客の実額はこれを上回る（費用予測が下振れする方向の既知バイアス）。
+   */
+  function extractCharges(body) {
+    const out = {};
+    for (const hotel of body.hotels || []) {
+      const parts = Array.isArray(hotel) ? hotel : hotel.hotel || [];
+      let no = null, min = null, max = null;
+      for (const part of parts) {
+        if (!part || typeof part !== "object") continue;
+        if (part.hotelBasicInfo) {
+          no = String(part.hotelBasicInfo.hotelNo);
+          const c = parseInt(part.hotelBasicInfo.hotelMinCharge, 10);
+          if (Number.isFinite(c) && c > 0) min = c;
+        }
+        for (const room of part.roomInfo || []) {
+          const dc = room && room.dailyCharge;
+          if (!dc) continue;
+          const v = parseInt(dc.total !== undefined ? dc.total : dc.rakutenCharge, 10);
+          if (Number.isFinite(v) && v > 0) max = max === null ? v : Math.max(max, v);
+        }
+      }
+      if (no) out[no] = { min, max };
+    }
+    return out;
+  }
+
+  /**
    * roomNum 探測法：roomNum=10→5→1 の順に一括照会し、
-   * hotelId → 10(≥10室) | 5(5–9室) | 1(1–4室) | 0(空きなし/未掲載) | null(hotelNo 不明) を返す。
+   * { tiers, charges } を返す。
+   *   tiers[hotelId]   = 10(≥10室) | 5(5–9室) | 1(1–4室) | 0(空きなし/未掲載) | null(hotelNo 不明)
+   *   charges[hotelId] = { min, max } 円/室・泊（データが取れなければ未設定）
    */
   async function probeVacancy(hotels, checkinDate) {
     const tiers = {};
+    const charges = {};
     for (const h of hotels) tiers[h.id] = h.rakutenHotelNo ? 0 : null;
     let remaining = hotels.filter(h => h.rakutenHotelNo);
-    if (remaining.length === 0) return tiers;
+    if (remaining.length === 0) return { tiers, charges };
 
     const checkin = checkinDate || new Date().toISOString().slice(0, 10);
     const out = new Date(checkin + "T00:00:00");
@@ -175,6 +210,12 @@ const RakutenAPI = (() => {
         });
         if (!body.notFound) {
           for (const info of extractBasicInfos(body)) found.add(String(info.hotelNo));
+          const priced = extractCharges(body);
+          // 価格は最初にヒットした照会のものを採用（後続ラウンドで上書きしない）
+          for (const h of batch) {
+            const c = priced[String(h.rakutenHotelNo)];
+            if (c && !charges[h.id] && (c.min || c.max)) charges[h.id] = c;
+          }
         }
       }
       remaining = remaining.filter(h => {
@@ -182,7 +223,7 @@ const RakutenAPI = (() => {
         return true;
       });
     }
-    return tiers;
+    return { tiers, charges };
   }
 
   // ---------- 施設情報同期（電話・総室数を楽天公式データで更新） ----------
