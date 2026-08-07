@@ -73,7 +73,10 @@ const Allocator = (() => {
       s.breakdown[pool].rooms += rooms;
     };
 
-    // ---- Pass 1: 乗務員（指定ホテル → 溢出は最寄り tier1）----
+    // ---- Pass 1: 乗務員 ----
+    // ① 指定ホテル → ② 最寄り tier1 → ③ 等級不問で最寄り
+    // tier1 は「強い優先」であって満室・除外時の絶対条件ではない（休息時間確保 > 4分の車程差）。
+    // ③ まで使い切って残った場合のみ未手配（＝圏内に空室ゼロ）＝範囲拡大で解消しうる。
     let crewLeft = Math.max(0, input.crewCount | 0);
     for (const s of st.filter(s => s.hotel.crewDesignated).sort(byTierDrive)) {
       if (crewLeft <= 0) break;
@@ -81,14 +84,24 @@ const Allocator = (() => {
       if (n > 0) { take(s, "crew", n, n); crewLeft -= n; }
     }
     if (crewLeft > 0) {
-      let overflowPlaced = 0;
-      for (const s of st.filter(s => !s.hotel.crewDesignated && s.hotel.tier === 1).sort(byDrive)) {
-        if (crewLeft <= 0) break;
-        const n = Math.min(crewLeft, s.rooms);
-        if (n > 0) { take(s, "crew", n, n); crewLeft -= n; overflowPlaced += n; }
-      }
-      if (overflowPlaced > 0)
-        validation.push({ severity: "warn", code: "crew-overflow", params: { n: overflowPlaced } });
+      const fillCrew = list => {
+        let placed = 0;
+        for (const s of list) {
+          if (crewLeft <= 0) break;
+          const n = Math.min(crewLeft, s.rooms);
+          if (n > 0) { take(s, "crew", n, n); crewLeft -= n; placed += n; }
+        }
+        return placed;
+      };
+      const toTier1 = fillCrew(st.filter(s => !s.hotel.crewDesignated && s.hotel.tier === 1).sort(byDrive));
+      // ③ 上級ホテルが満室／除外された場合の最終手段（既に使い切った分は rooms=0 で自然に飛ばされる）
+      const toLower = fillCrew([...st].sort(byDrive));
+
+      // 振替先ごとに別メッセージ（合算すると「上級ホテルへ」と「上級が無い」が矛盾する）
+      if (toTier1 > 0)
+        validation.push({ severity: "warn", code: "crew-overflow", params: { n: toTier1 } });
+      if (toLower > 0)
+        validation.push({ severity: "warn", code: "crew-lower-tier", params: { n: toLower } });
       if (crewLeft > 0) {
         result.unassigned.crew = crewLeft;
         validation.push({ severity: "error", code: "crew-unplaced", params: { n: crewLeft } });
@@ -334,6 +347,32 @@ const Allocator = (() => {
       const t1b = r.assignments.find(a => a.hotelId === "t1b");
       ok(t1b.breakdown.crew.pax === 7, `T6: 溢出数 ${t1b.breakdown.crew.pax} ≠ 7`);
       conservationCheck("T6", input, hotels, r, failures);
+    }
+    // 6b. tier1 が全滅（満室・除外）でも乗務員は最寄りの下位ホテルへ落ちる
+    {
+      const hotels = [
+        mockHotel("desig", { crewDesignated: true, usableRooms: 2, tier: 1, driveMinutes: 10 }),
+        mockHotel("far2",  { tier: 2, driveMinutes: 25, usableRooms: 50 }),
+        mockHotel("near3", { tier: 3, driveMinutes: 8,  usableRooms: 50 })
+      ];
+      const input = baseInput({ crewCount: 10 });
+      const r = allocate(input, hotels);
+      ok(r.unassigned.crew === 0, `T6b: 未手配 ${r.unassigned.crew} 名（下位ホテルへ落ちていない）`);
+      ok(!r.validation.some(v => v.code === "crew-unplaced"), "T6b: crew-unplaced が出ている");
+      ok(r.validation.some(v => v.code === "crew-lower-tier"), "T6b: crew-lower-tier なし");
+      const near3 = r.assignments.find(a => a.hotelId === "near3");
+      ok(near3 && near3.breakdown.crew.pax === 8,
+        `T6b: 最寄り優先が効いていない（near3 = ${near3 ? near3.breakdown.crew.pax : 0} 名 ≠ 8）`);
+      conservationCheck("T6b", input, hotels, r, failures);
+    }
+    // 6c. 圏内に空室ゼロのときだけ crew-unplaced（範囲拡大で解消しうる状態）
+    {
+      const hotels = [mockHotel("full", { usableRooms: 0, tier: 2 })];
+      const input = baseInput({ totalPax: 0, crewCount: 4 });
+      const r = allocate(input, hotels);
+      ok(r.unassigned.crew === 4, `T6c: 未手配 ${r.unassigned.crew} ≠ 4`);
+      ok(r.validation.some(v => v.code === "crew-unplaced"), "T6c: crew-unplaced なし");
+      conservationCheck("T6c", input, hotels, r, failures);
     }
     // 7. バス1台の多波次（発車オフセットが累積する）
     {
