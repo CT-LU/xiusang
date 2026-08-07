@@ -9,6 +9,11 @@
 const MapView = (() => {
   let map = null;
   let overlay = null;
+  let lastItems = [];      // 範囲選択の判定に使う（update のたびに更新）
+  let selectMode = false;
+  let dragStart = null;
+  let box = null;          // ドラッグ中のプレビュー矩形
+  let selectHandler = null;
 
   function available() { return typeof window !== "undefined" && !!window.L && !!map; }
 
@@ -30,8 +35,70 @@ const MapView = (() => {
       }).addTo(map).bindTooltip(`成田空港 ${t.nameJa}`, { direction: "top" });
     }
     overlay = L.layerGroup().addTo(map);
+
+    // 範囲選択はマウスとタッチ（現場のタブレット）を同じ経路で扱うため pointer イベントを使う。
+    // Leaflet の map.on("mousedown") はタッチのドラッグ中に発火しない。
+    const c = map.getContainer();
+    c.addEventListener("pointerdown", onPointerDown);
+    c.addEventListener("pointermove", onPointerMove);
+    c.addEventListener("pointerup", onPointerUp);
+    c.addEventListener("pointercancel", onPointerUp);
     return true;
   }
+
+  // ---------- 範囲選択 ----------
+  function eventLatLng(ev) {
+    const r = map.getContainer().getBoundingClientRect();
+    return map.containerPointToLatLng(L.point(ev.clientX - r.left, ev.clientY - r.top));
+  }
+
+  function clearBox() {
+    if (box) { map.removeLayer(box); box = null; }
+  }
+
+  function onPointerDown(ev) {
+    if (!selectMode) return;
+    ev.preventDefault();
+    clearBox();
+    dragStart = eventLatLng(ev);
+    // ポインタを捕捉して地図の外で指を離しても mouseup を取りこぼさない
+    try { map.getContainer().setPointerCapture(ev.pointerId); } catch (e) { /* 非対応環境は無視 */ }
+  }
+
+  function onPointerMove(ev) {
+    if (!selectMode || !dragStart) return;
+    ev.preventDefault();
+    const b = L.latLngBounds(dragStart, eventLatLng(ev));
+    if (box) box.setBounds(b);
+    else box = L.rectangle(b, { color: "#1565c0", weight: 2, dashArray: "5 4", fillOpacity: 0.08 }).addTo(map);
+  }
+
+  function onPointerUp(ev) {
+    if (!selectMode || !dragStart) return;
+    dragStart = null;
+    try { map.getContainer().releasePointerCapture(ev.pointerId); } catch (e) { /* 同上 */ }
+    if (!box) return;  // ドラッグせず離した＝ただのクリック
+    const b = box.getBounds();
+    const ids = lastItems
+      .filter(it => b.contains(L.latLng(it.hotel.lat, it.hotel.lng)))
+      .map(it => it.hotel.id);
+    if (ids.length === 0) clearBox();
+    if (selectHandler) selectHandler(ids);
+  }
+
+  /** 範囲選択モードの ON/OFF。ON の間は地図のドラッグ移動を止める */
+  function setSelectMode(on) {
+    if (!available()) return;
+    selectMode = !!on;
+    dragStart = null;
+    clearBox();
+    map.getContainer().classList.toggle("box-select", selectMode);
+    if (selectMode) { map.dragging.disable(); map.doubleClickZoom.disable(); }
+    else { map.dragging.enable(); map.doubleClickZoom.enable(); }
+  }
+
+  /** 囲まれたホテル id 配列を受け取るコールバックを登録（app.js が使う） */
+  function onBoxSelect(fn) { selectHandler = fn; }
 
   /**
    * line   = 空港からの接続線の色
@@ -91,6 +158,7 @@ const MapView = (() => {
   /** 全ホテルを状態付きで再描画（計算のたびに呼ぶ） */
   function update(items) {
     if (!available()) return;
+    lastItems = items;
     overlay.clearLayers();
     for (const item of items) {
       const h = item.hotel;
@@ -114,5 +182,5 @@ const MapView = (() => {
   /** 収合→展開後にタイルレイアウトを再計算（Leaflet はコンテナサイズ変化を自動検知しない） */
   function invalidate() { if (available()) setTimeout(() => map.invalidateSize(), 50); }
 
-  return { init, update, invalidate };
+  return { init, update, invalidate, setSelectMode, onBoxSelect };
 })();

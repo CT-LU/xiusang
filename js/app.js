@@ -368,7 +368,7 @@
   document.addEventListener("DOMContentLoaded", () => {
     applyFacts();
     initForm();
-    MapView.init();
+    const mapOk = MapView.init();
     MapView.update(initialMapItems()); // 計算前から全ホテルを表示（ポップアップで使用/除外可）
     setStatus(RakutenAPI.getAppId() ? "idle" : "offline",
       RakutenAPI.getAppId() ? null : I18N.t("api-no-key"));
@@ -388,6 +388,38 @@
       try { localStorage.setItem(LS_MAP, collapsed ? "1" : "0"); } catch (e) { /* ignore */ }
       applyMapState(collapsed);
     });
+
+    // 地図のドラッグ範囲選択（囲んだホテルを一括で使用/除外）
+    if (!mapOk) $("boxSelectBtn").hidden = true;
+    let boxIds = [];
+    const setBoxMode = on => {
+      $("boxSelectBtn").classList.toggle("active", on);
+      $("boxSelectBtn").innerHTML = on
+        ? '選択を終了 ⬚ <span class="ja">結束框選</span>'
+        : '範囲選択 ⬚ <span class="ja">框選多家飯店</span>';
+      MapView.setSelectMode(on);
+      if (!on) { boxIds = []; $("boxActions").hidden = true; }
+    };
+    MapView.onBoxSelect(ids => {
+      boxIds = ids;
+      $("boxActions").hidden = ids.length === 0;
+      $("boxCount").innerHTML = `${ids.length} 件を選択 <span class="ja">已圈選 ${ids.length} 家</span>`;
+    });
+    const applyBox = excluded => {
+      const ov = loadOverrides();
+      for (const id of boxIds) {
+        ov[id] = ov[id] || {};
+        ov[id].excluded = excluded;
+      }
+      saveOverrides(ov);
+      setBoxMode(false);   // 適用後はモードを抜ける（連続適用より誤操作防止を優先）
+      refreshSelection();
+    };
+    $("boxSelectBtn").addEventListener("click",
+      () => setBoxMode(!$("boxSelectBtn").classList.contains("active")));
+    $("boxInclude").addEventListener("click", () => applyBox(false));
+    $("boxExclude").addEventListener("click", () => applyBox(true));
+    $("boxCancel").addEventListener("click", () => setBoxMode(false));
 
     $("calcBtn").addEventListener("click", calculate);
     $("printBtn").addEventListener("click", () => window.print());
