@@ -252,7 +252,20 @@
       mx: (a.hotel.lng - c.lng) * kx,
       my: -(a.hotel.lat - c.lat) * 111320
     }));
-    const xs = [0, ...pts.map(p => p.mx)], ys = [0, ...pts.map(p => p.my)];
+    // 参照点が 1 つも枠に入らないと「どこの話か」が読めないので、ホテル群に近い 2 駅は
+    // 縮尺の計算に必ず含める（空港近郊だけに配分した場合、成田駅すら枠外に落ちてしまうため）
+    const lmAll = LANDMARKS.map(L => ({
+      name: L.nameJa, mx: (L.lng - c.lng) * kx, my: -(L.lat - c.lat) * 111320
+    }));
+    const hx = pts.reduce((a, p) => a + p.mx, 0) / pts.length;
+    const hy = pts.reduce((a, p) => a + p.my, 0) / pts.length;
+    // 1 駅だけにする：2 駅入れると遠い方に引きずられて肝心のホテル群が隅に潰れる
+    const anchors = [...lmAll]
+      .sort((a, b) => Math.hypot(a.mx - hx, a.my - hy) - Math.hypot(b.mx - hx, b.my - hy))
+      .slice(0, 1);
+
+    const xs = [0, ...pts.map(p => p.mx), ...anchors.map(m => m.mx)];
+    const ys = [0, ...pts.map(p => p.my), ...anchors.map(m => m.my)];
     const spanX = Math.max(Math.max(...xs) - Math.min(...xs), MIN_SPAN_M);
     const spanY = Math.max(Math.max(...ys) - Math.min(...ys), MIN_SPAN_M * IH / IW);
     const scale = Math.min(IW / spanX, IH / spanY);
@@ -267,9 +280,9 @@
     const barPx = niceKm * 1000 * scale;
     const ax = px(0), ay = py(0);
 
-    // 参照点は枠内に入るものだけ描く（縮尺は割当ホテルで決まるため、圏外の駅は自然に落ちる）
-    const marks = LANDMARKS
-      .map(L => ({ name: L.nameJa, x: px((L.lng - c.lng) * kx), y: py(-(L.lat - c.lat) * 111320) }))
+    // 枠内に入るものだけ描く（上の anchors 2 駅は必ず入る。それ以外は縮尺次第）
+    const marks = lmAll
+      .map(L => ({ name: L.name, x: px(L.mx), y: py(L.my) }))
       // 下限は PAD_B より内側にすると、ホテルが描かれる最南端（PAD_T+IH）にある駅まで切れてしまう
       .filter(m => m.x > PAD_L - 6 && m.x < W - PAD_R + 30 && m.y > PAD_T - 6 && m.y < H - PAD_B + 4);
 
