@@ -56,13 +56,21 @@ const AIRPORT_CENTER = { lat: 35.7720, lng: 140.3929 };
 const DEFAULTS = {
   totalPax: 320,
   premiumPax: 24,
+  // グループ未登録のときに一括生成する初期値（家族 18 組 × 3 名）。登録があればそちらが優先。
   familyGroups: 18,
   familyAvgSize: 3,
   wheelchairPax: 2,
   crewCount: 14,
   busCapacity: 45,
   busesAvailable: 6,
-  occupancy: { economy: 2, premium: 1, crew: 1, familyMaxPerRoom: 4 }
+  /**
+   * 1室あたりの人数。partyMaxPerRoom は登録グループの種別ごとの上限。
+   * 家族 4（添い寝・エキストラ込み）／団体 2（知人同士の相部屋可）／個人 1（見知らぬ客を同室にしない）。
+   */
+  occupancy: {
+    economy: 2, premium: 1, crew: 1,
+    partyMaxPerRoom: { family: 4, group: 2, solo: 1 }
+  }
 };
 
 /**

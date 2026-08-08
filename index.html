@@ -6,7 +6,7 @@
 <title>成田空港 欠航時ホテル・バス手配 | 成田機場停飛住宿分配</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<link rel="stylesheet" href="css/style.css?v=20260808c">
+<link rel="stylesheet" href="css/style.css?v=20260808d">
 </head>
 <body>
 
@@ -39,12 +39,35 @@
       <label>C・Fクラス <span class="ja">商務／頭等艙人數</span>
         <input type="number" id="premiumPax" min="0"></label>
 
-      <div class="row2">
-        <label>家族組数 <span class="ja">家庭組數</span>
-          <input type="number" id="familyGroups" min="0"></label>
-        <label>平均人数/組 <span class="ja">每組平均人數</span>
-          <input type="number" id="familyAvgSize" min="1"></label>
-      </div>
+      <fieldset class="party-fields">
+        <legend>グループ登録 <span class="ja">分組登記</span></legend>
+        <p class="cost-hint">家族・団体・個人を1組ずつ登録します。同じ組は必ず同じホテル（分割しません）。座席番号は乗車名簿に印字されます。
+          <span class="ja">逐組登記：家族=家庭・団体=團體・個人=個人。同一組必定分到同一家飯店（不拆散）；座位號會印在乘車名單上。</span></p>
+        <div class="party-head">
+          <span>種別<br><span class="ja">類別</span></span>
+          <span>人数<br><span class="ja">人數</span></span>
+          <span>座席番号<br><span class="ja">機票座位號</span></span>
+          <span></span>
+        </div>
+        <div id="partyList"></div>
+        <div class="party-tools">
+          <button type="button" id="addParty">＋ 1組追加 <span class="ja">新增一組</span></button>
+          <button type="button" id="clearParties">全消去 <span class="ja">全部清空</span></button>
+        </div>
+        <div class="party-quick">
+          <select id="quickKind" title="家族=家庭 / 団体=團體 / 個人=個人">
+            <option value="family">家族</option>
+            <option value="group">団体</option>
+            <option value="solo">個人</option>
+          </select>
+          <input type="number" id="quickCount" min="1" title="組数 / 組數">
+          <span>組 ×</span>
+          <input type="number" id="quickSize" min="1" title="1組の人数 / 每組人數">
+          <span>名</span>
+          <button type="button" id="quickAdd">一括追加<span class="ja">批次新增</span></button>
+        </div>
+        <p class="party-summary" id="partySummary"></p>
+      </fieldset>
 
       <label>車椅子・バリアフリー <span class="ja">輪椅／無障礙需求人數</span>
         <input type="number" id="wheelchairPax" min="0"></label>
@@ -141,7 +164,7 @@
           <th>ホテル<br><span class="ja">飯店</span></th>
           <th>乗務員<br><span class="ja">組員</span></th>
           <th>C・F</th>
-          <th>家族<br><span class="ja">家庭</span></th>
+          <th title="登録グループ（家族・団体・個人）。同一組は必ず同一ホテル">グループ<br><span class="ja">分組</span></th>
           <th>車椅子<br><span class="ja">無障礙</span></th>
           <th>一般<br><span class="ja">經濟艙</span></th>
           <th>計（名/室）<br><span class="ja">合計（人/房）</span></th>
@@ -173,11 +196,11 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="js/hotels-data.js?v=20260808c"></script>
-<script src="js/i18n.js?v=20260808c"></script>
-<script src="js/allocator.js?v=20260808c"></script>
-<script src="js/rakuten-api.js?v=20260808c"></script>
-<script src="js/map.js?v=20260808c"></script>
-<script src="js/app.js?v=20260808c"></script>
+<script src="js/hotels-data.js?v=20260808d"></script>
+<script src="js/i18n.js?v=20260808d"></script>
+<script src="js/allocator.js?v=20260808d"></script>
+<script src="js/rakuten-api.js?v=20260808d"></script>
+<script src="js/map.js?v=20260808d"></script>
+<script src="js/app.js?v=20260808d"></script>
 </body>
 </html>

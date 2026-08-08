@@ -18,14 +18,60 @@ const Allocator = (() => {
     return sizes;
   }
 
+  /** 登録グループの種別。同一グループは必ず同一ホテル（分割しない）。 */
+  const PARTY_KINDS = ["family", "group", "solo"];
+  const DEFAULT_MAX_PER_ROOM = { family: 4, group: 2, solo: 1 };
+
+  function maxPerRoom(occ, kind) {
+    const m = (occ && occ.partyMaxPerRoom) || {};
+    // familyMaxPerRoom は旧仕様の入力（家族のみだった頃）との互換
+    if (kind === "family" && !m.family && occ && occ.familyMaxPerRoom) return occ.familyMaxPerRoom;
+    return Math.max(1, m[kind] || DEFAULT_MAX_PER_ROOM[kind] || 1);
+  }
+
+  /**
+   * 入力のグループ一覧を正規化する。
+   * input.parties があればそれを使い、無ければ旧仕様（familyGroups × familyAvgSize）から家族として生成。
+   * @returns {Array} [{ no, kind, size, seats, rooms, hotelId }]
+   */
+  function buildParties(input) {
+    const occ = input.occupancy || {};
+    const src = Array.isArray(input.parties) && input.parties.length
+      ? input.parties
+      : buildFamilySizes(input.familyGroups, input.familyAvgSize).map(size => ({ kind: "family", size }));
+    const out = [];
+    for (const p of src) {
+      const size = Math.max(1, Math.floor(p.size) || 0);
+      if (!size) continue;
+      const kind = PARTY_KINDS.includes(p.kind) ? p.kind : "family";
+      out.push({
+        no: out.length + 1,
+        kind, size,
+        seats: (p.seats || "").trim(),
+        rooms: Math.ceil(size / maxPerRoom(occ, kind)),
+        hotelId: null
+      });
+    }
+    return out;
+  }
+
   function emptyBreakdown() {
     return {
       crew:       { pax: 0, rooms: 0 },
       premium:    { pax: 0, rooms: 0 },
       accessible: { pax: 0, rooms: 0 },
       family:     { groups: 0, pax: 0, rooms: 0 },
+      group:      { groups: 0, pax: 0, rooms: 0 },
+      solo:       { groups: 0, pax: 0, rooms: 0 },
       economy:    { pax: 0, rooms: 0 }
     };
+  }
+
+  /** 登録グループ 3 種の合計（表示・集計用） */
+  function partyTotals(b) {
+    return PARTY_KINDS.reduce((a, k) => ({
+      groups: a.groups + b[k].groups, pax: a.pax + b[k].pax, rooms: a.rooms + b[k].rooms
+    }), { groups: 0, pax: 0, rooms: 0 });
   }
 
   const byDrive = (a, b) =>
@@ -41,13 +87,14 @@ const Allocator = (() => {
     const validation = [];
     const occ = input.occupancy;
 
-    const familySizes = buildFamilySizes(input.familyGroups, input.familyAvgSize);
-    const familyPax = familySizes.reduce((a, b) => a + b, 0);
-    let economyPax = input.totalPax - input.premiumPax - input.wheelchairPax - familyPax;
+    const parties = buildParties(input);
+    const partyPax = parties.reduce((a, p) => a + p.size, 0);
+    let economyPax = input.totalPax - input.premiumPax - input.wheelchairPax - partyPax;
 
     const result = {
       assignments: [],
-      unassigned: { crew: 0, premium: 0, accessible: 0, familyGroups: 0, familyPax: 0, economy: 0 },
+      parties, // 登録グループ一覧（分配後は hotelId が入る。名簿印刷で使用）
+      unassigned: { crew: 0, premium: 0, accessible: 0, partyGroups: 0, partyPax: 0, economy: 0 },
       validation,
       totals: { pax: 0, rooms: 0, trips: 0, lastReturnMin: 0 },
       ok: true
@@ -64,7 +111,8 @@ const Allocator = (() => {
       hotel: h,
       rooms: Math.max(0, h.usableRooms | 0),
       accRooms: Math.min(h.accessibleRooms | 0, Math.max(0, h.usableRooms | 0)),
-      breakdown: emptyBreakdown()
+      breakdown: emptyBreakdown(),
+      parties: [] // このホテルに入るグループ（入力順で保持）
     }));
 
     const take = (s, pool, pax, rooms) => {
@@ -150,25 +198,29 @@ const Allocator = (() => {
       premLeft = 0;
     }
 
-    // ---- Pass 4: 家族（原子単位・絶対に分割しない。First-Fit Decreasing）----
-    const sortedFamilies = [...familySizes].sort((a, b) => b - a);
+    // ---- Pass 4: 登録グループ（家族・団体・個人。原子単位・絶対に分割しない。First-Fit Decreasing）----
+    // 必要室数の多い順に置く。部屋数こそが奪い合う資源なので、人数ではなく室数で降順にする。
+    const sortedParties = [...parties].sort((a, b) => b.rooms - a.rooms || b.size - a.size || a.no - b.no);
     const hotelsNear = [...st].sort(byDrive);
-    let unplacedFamilies = 0, unplacedFamilyPax = 0;
-    for (const size of sortedFamilies) {
-      const roomsNeeded = Math.ceil(size / occ.familyMaxPerRoom);
-      const s = hotelsNear.find(s => s.rooms >= roomsNeeded);
+    let unplacedParties = 0, unplacedPartyPax = 0;
+    for (const p of sortedParties) {
+      const s = hotelsNear.find(s => s.rooms >= p.rooms);
       if (s) {
-        take(s, "family", size, roomsNeeded);
-        s.breakdown.family.groups += 1;
+        take(s, p.kind, p.size, p.rooms);
+        s.breakdown[p.kind].groups += 1;
+        p.hotelId = s.hotel.id;
+        s.parties.push(p);
       } else {
-        unplacedFamilies += 1;
-        unplacedFamilyPax += size;
+        unplacedParties += 1;
+        unplacedPartyPax += p.size;
       }
     }
-    if (unplacedFamilies > 0) {
-      result.unassigned.familyGroups = unplacedFamilies;
-      result.unassigned.familyPax = unplacedFamilyPax;
-      validation.push({ severity: "error", code: "family-unplaced", params: { n: unplacedFamilies } });
+    for (const s of st) s.parties.sort((a, b) => a.no - b.no);
+    if (unplacedParties > 0) {
+      result.unassigned.partyGroups = unplacedParties;
+      result.unassigned.partyPax = unplacedPartyPax;
+      validation.push({ severity: "error", code: "party-unplaced",
+        params: { n: unplacedParties, pax: unplacedPartyPax } });
     }
 
     // ---- Pass 5: エコノミー（距離順に詰めて次へ、2人/室）----
@@ -194,12 +246,15 @@ const Allocator = (() => {
 
     for (const s of st) {
       const b = s.breakdown;
-      const totalPax = b.crew.pax + b.premium.pax + b.accessible.pax + b.family.pax + b.economy.pax;
-      const totalRooms = b.crew.rooms + b.premium.rooms + b.accessible.rooms + b.family.rooms + b.economy.rooms;
+      const pt = partyTotals(b);
+      const totalPax = b.crew.pax + b.premium.pax + b.accessible.pax + pt.pax + b.economy.pax;
+      const totalRooms = b.crew.rooms + b.premium.rooms + b.accessible.rooms + pt.rooms + b.economy.rooms;
       const asg = {
         hotelId: s.hotel.id,
         hotel: s.hotel,
         breakdown: b,
+        parties: s.parties,
+        partyTotals: pt,
         totalPax, totalRooms,
         vacancyTier: null,
         needsPhoneConfirm: false,
@@ -301,23 +356,23 @@ const Allocator = (() => {
 
   function baseInput(over) {
     return Object.assign({
-      totalPax: 0, premiumPax: 0, familyGroups: 0, familyAvgSize: 3,
+      totalPax: 0, premiumPax: 0, parties: [], familyGroups: 0, familyAvgSize: 3,
       wheelchairPax: 0, crewCount: 0, busCapacity: 45, busesAvailable: 6,
-      occupancy: { economy: 2, premium: 1, crew: 1, familyMaxPerRoom: 4 }
+      occupancy: { economy: 2, premium: 1, crew: 1, partyMaxPerRoom: { family: 4, group: 2, solo: 1 } }
     }, over);
   }
 
   /** 守恒検査：各プール 分配+未安置 = 入力、房数 ≤ cap */
   function conservationCheck(name, input, hotels, r, failures) {
     const sum = pool => r.assignments.reduce((a, s) => a + s.breakdown[pool].pax, 0);
-    const familySizes = buildFamilySizes(input.familyGroups, input.familyAvgSize);
-    const familyPax = familySizes.reduce((a, b) => a + b, 0);
+    const sumParties = () => PARTY_KINDS.reduce((a, k) => a + sum(k), 0);
+    const partyPax = buildParties(input).reduce((a, p) => a + p.size, 0);
     const checks = [
       ["crew",   sum("crew") + r.unassigned.crew, Math.max(0, input.crewCount)],
       ["acc",    sum("accessible") + r.unassigned.accessible, Math.max(0, input.wheelchairPax)],
-      ["family", sum("family") + r.unassigned.familyPax, familyPax],
+      ["party",  sumParties() + r.unassigned.partyPax, partyPax],
       ["prem+eco", sum("premium") + sum("economy") + r.unassigned.economy,
-        Math.max(0, input.totalPax - input.wheelchairPax - familyPax)]
+        Math.max(0, input.totalPax - input.wheelchairPax - partyPax)]
     ];
     for (const [pool, got, want] of checks) {
       if (got !== want) failures.push(`${name}: 守恒NG ${pool} got=${got} want=${want}`);
@@ -461,6 +516,54 @@ const Allocator = (() => {
       const c = estimateCost(r, { roomUnit: {}, busPerTrip: 0, mealPerPax: 0, contingencyPct: 5 });
       ok(c.total === 0 && c.perPax === 0, "T9b: 全ゼロ入力で費用が 0 にならない");
     }
+    // 10. グループ登録：種別ごとの1室あたり人数（家族4・団体2・個人1）で室数が決まる
+    {
+      const hotels = [mockHotel("h", { usableRooms: 50 })];
+      const input = baseInput({
+        totalPax: 20,
+        parties: [
+          { kind: "family", size: 5, seats: "32A-32E" }, // 5名 → 2室
+          { kind: "group",  size: 12, seats: "40A-45F" }, // 12名 → 6室
+          { kind: "solo",   size: 1, seats: "12C" }       // 1名 → 1室
+        ]
+      });
+      const r = allocate(input, hotels);
+      const b = r.assignments[0].breakdown;
+      ok(b.family.rooms === 2 && b.group.rooms === 6 && b.solo.rooms === 1,
+        `T10: 室数 家族${b.family.rooms}/団体${b.group.rooms}/個人${b.solo.rooms} ≠ 2/6/1`);
+      ok(b.family.groups === 1 && b.group.groups === 1 && b.solo.groups === 1, "T10: 組数が 1/1/1 でない");
+      ok(r.assignments[0].parties.length === 3, "T10: ホテルにグループ明細が付いていない");
+      ok(r.assignments[0].parties[0].seats === "32A-32E", "T10: 座席番号が結果に引き継がれていない");
+      ok(r.parties.every(p => p.hotelId === "h"), "T10: 全グループが同一ホテルに入っていない");
+      // 残り 20-18=2 名は一般（2名/室 → 1室）
+      ok(b.economy.pax === 2 && b.economy.rooms === 1, `T10: 一般 ${b.economy.pax}名/${b.economy.rooms}室 ≠ 2名/1室`);
+      conservationCheck("T10", input, hotels, r, failures);
+    }
+    // 11. グループは絶対に分割しない（1軒では足りない大団体は残室の多い方へ丸ごと入る）
+    {
+      const hotels = [
+        mockHotel("near", { usableRooms: 3, driveMinutes: 5 }),
+        mockHotel("far",  { usableRooms: 20, driveMinutes: 30 })
+      ];
+      const input = baseInput({ totalPax: 16, parties: [{ kind: "group", size: 16 }] });
+      const r = allocate(input, hotels);
+      const near = r.assignments.find(a => a.hotelId === "near");
+      const far = r.assignments.find(a => a.hotelId === "far");
+      ok(near.breakdown.group.pax === 0 && far.breakdown.group.pax === 16,
+        "T11: 16名団体が近い方へ分割されている（不分割違反）");
+      ok(r.parties[0].hotelId === "far", "T11: グループの割当先ホテルが記録されていない");
+      conservationCheck("T11", input, hotels, r, failures);
+    }
+    // 12. どのホテルにも入らないグループは未手配として報告（人数も出す）
+    {
+      const hotels = [mockHotel("tiny", { usableRooms: 1 })];
+      const input = baseInput({ totalPax: 9, parties: [{ kind: "family", size: 9 }] }); // 9名 → 3室
+      const r = allocate(input, hotels);
+      ok(!r.ok && r.unassigned.partyGroups === 1 && r.unassigned.partyPax === 9,
+        `T12: 未手配 ${r.unassigned.partyGroups}組/${r.unassigned.partyPax}名 ≠ 1組/9名`);
+      ok(r.validation.some(v => v.code === "party-unplaced"), "T12: party-unplaced なし");
+      conservationCheck("T12", input, hotels, r, failures);
+    }
     // 8. 入力矛盾（内訳 > 総数）
     {
       const r = allocate(baseInput({ totalPax: 10, premiumPax: 20 }), HOTELS);
@@ -473,5 +576,5 @@ const Allocator = (() => {
     return { passed, failures };
   }
 
-  return { allocate, estimateCost, runSelfTests, buildFamilySizes };
+  return { allocate, estimateCost, runSelfTests, buildFamilySizes, buildParties, partyTotals, PARTY_KINDS };
 })();

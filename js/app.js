@@ -6,6 +6,13 @@
 (() => {
   const $ = id => document.getElementById(id);
   const LS_OVERRIDES = "narita.hotelOverrides.v1";
+  const LS_PARTIES = "narita.parties.v1";
+
+  const KIND_LABEL = {
+    family: { ja: "家族", zh: "家庭" },
+    group:  { ja: "団体", zh: "團體" },
+    solo:   { ja: "個人", zh: "個人" }
+  };
 
   let lastResult = null;
   let probeSeq = 0; // 古い非同期照会が新しい計算結果を上書きしないためのトークン
@@ -32,7 +39,144 @@
   function hasShortage(r) {
     if (r.validation.some(v => v.code === "input-invalid")) return false;
     const u = r.unassigned;
-    return u.crew + u.accessible + u.familyPax + u.economy > 0;
+    return u.crew + u.accessible + u.partyPax + u.economy > 0;
+  }
+
+  // ---------- グループ登録（家族・団体・個人） ----------
+  /**
+   * 座席番号を展開する。搭乗券の記載をそのまま貼れるように複数の書き方を受ける。
+   *   "32A"           → ["32A"]
+   *   "32A-32C"       → 同じ列の連番
+   *   "32A-34A"       → 同じ席番で列跨ぎ
+   *   "32A,32B 33C"   → カンマ・読点・スラッシュ・空白いずれでも区切れる
+   * 解釈できない書き方（"32A-34C" のように行も席も跨ぐ等）は null を返し、人数の自動補完をしない。
+   * 座席表を持たないため実在確認はしない。あくまで名簿印字と人数の目安。
+   */
+  const SEAT_RE = /^(\d{1,3})([A-Za-z])$/;
+  function expandSeats(str) {
+    const raw = String(str || "").trim();
+    if (!raw) return [];
+    const out = [];
+    for (const seg of raw.split(/[,、，\/\s]+/).filter(Boolean)) {
+      const parts = seg.split(/[-–~〜]/);
+      if (parts.length === 1) {
+        const m = SEAT_RE.exec(parts[0]);
+        if (!m) return null;
+        out.push(`${parseInt(m[1], 10)}${m[2].toUpperCase()}`);
+      } else if (parts.length === 2) {
+        const a = SEAT_RE.exec(parts[0]), b = SEAT_RE.exec(parts[1]);
+        if (!a || !b) return null;
+        const r1 = parseInt(a[1], 10), r2 = parseInt(b[1], 10);
+        const c1 = a[2].toUpperCase(), c2 = b[2].toUpperCase();
+        if (r1 === r2 && c1 <= c2) {
+          for (let c = c1.charCodeAt(0); c <= c2.charCodeAt(0); c++)
+            out.push(`${r1}${String.fromCharCode(c)}`);
+        } else if (c1 === c2 && r1 <= r2) {
+          for (let r = r1; r <= r2; r++) out.push(`${r}${c1}`);
+        } else return null;
+      } else return null;
+    }
+    return out;
+  }
+
+  /** 座席番号パーサの自己検証（?selftest=1 で Allocator の自測と一緒に走る） */
+  function runSeatSelfTests() {
+    const f = [];
+    const eq = (got, want, msg) => {
+      if (JSON.stringify(got) !== JSON.stringify(want))
+        f.push(`${msg}: got=${JSON.stringify(got)} want=${JSON.stringify(want)}`);
+    };
+    eq(expandSeats("32A-32C"), ["32A", "32B", "32C"], "S1 同列の範囲");
+    eq(expandSeats("12A-14A"), ["12A", "13A", "14A"], "S2 列跨ぎの範囲");
+    eq(expandSeats("32A, 33b 40C"), ["32A", "33B", "40C"], "S3 列挙（区切り・小文字混在）");
+    eq(expandSeats("32A-32C,45D"), ["32A", "32B", "32C", "45D"], "S4 範囲と列挙の混在");
+    eq(expandSeats(""), [], "S5 空欄");
+    eq(expandSeats("32A-34C"), null, "S6 列も席も跨ぐ範囲は解釈しない");
+    eq(expandSeats("32C-32A"), null, "S7 逆順は解釈しない");
+    eq(expandSeats("あ"), null, "S8 不正文字");
+    eq(expandSeats("32"), null, "S9 席番なし");
+    return f;
+  }
+
+  /** 画面の登録グループ。auto=true の間は座席番号から人数を自動補完する（手入力したら止める） */
+  let parties = [];
+
+  function loadParties() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(LS_PARTIES) || "[]");
+      if (!Array.isArray(raw)) return [];
+      return raw
+        .filter(p => p && KIND_LABEL[p.kind])
+        .map(p => ({
+          kind: p.kind,
+          size: Math.max(1, parseInt(p.size, 10) || 1),
+          seats: String(p.seats || ""),
+          auto: p.auto !== false
+        }));
+    } catch (e) { return []; }
+  }
+  function saveParties() {
+    try { localStorage.setItem(LS_PARTIES, JSON.stringify(parties)); } catch (e) { /* ignore */ }
+  }
+
+  function newParty(kind, size, seats) {
+    return { kind: kind || "family", size: Math.max(1, size | 0) || 1, seats: seats || "", auto: true };
+  }
+
+  /** 登録グループ由来の警示（座席重複・人数超過）。分配結果の validation に足して表示する */
+  function partyWarnings(input) {
+    const out = [];
+    const seen = new Map();
+    for (const p of parties) {
+      for (const s of (expandSeats(p.seats) || [])) seen.set(s, (seen.get(s) || 0) + 1);
+    }
+    const dup = [...seen.entries()].filter(([, n]) => n > 1);
+    if (dup.length) {
+      out.push({ severity: "warn", code: "party-seat-dup",
+        params: { seats: dup.slice(0, 6).map(([s]) => s).join(", ") + (dup.length > 6 ? " …" : ""),
+                  n: dup[0][1] } });
+    }
+    const pax = parties.reduce((a, p) => a + p.size, 0);
+    if (pax > input.totalPax) out.push({ severity: "warn", code: "party-over-total", params: { n: pax } });
+    return out;
+  }
+
+  function renderParties() {
+    const box = $("partyList");
+    box.innerHTML = "";
+    parties.forEach((p, i) => {
+      const seats = expandSeats(p.seats);
+      const row = document.createElement("div");
+      row.className = "party-row" + (p.seats.trim() && seats === null ? " bad-seats" : "");
+      row.dataset.i = i;
+      row.innerHTML = `
+        <select class="p-kind" title="家族=家庭（4名/室）/ 団体=團體（2名/室）/ 個人=個人（1名/室）">
+          ${Object.keys(KIND_LABEL).map(k =>
+            `<option value="${k}" ${k === p.kind ? "selected" : ""}>${KIND_LABEL[k].ja}</option>`).join("")}
+        </select>
+        <input type="number" class="p-size" min="1" value="${p.size}">
+        <input type="text" class="p-seats" value="${p.seats.replace(/"/g, "&quot;")}" placeholder="32A-32C">
+        <button type="button" class="p-del" title="この組を削除 / 刪除這組">✕</button>`;
+      box.appendChild(row);
+    });
+    updatePartySummary();
+  }
+
+  /** 登録合計と「残り＝一般旅客」を出す。負なら入力矛盾なので赤字で示す */
+  function updatePartySummary() {
+    const n = (id) => Math.max(0, parseInt($(id).value, 10) || 0);
+    const pax = parties.reduce((a, p) => a + p.size, 0);
+    const rest = n("totalPax") - n("premiumPax") - n("wheelchairPax") - pax;
+    const byKind = Object.keys(KIND_LABEL)
+      .map(k => {
+        const g = parties.filter(p => p.kind === k);
+        return g.length ? `${KIND_LABEL[k].ja}${g.length}組${g.reduce((a, p) => a + p.size, 0)}名` : null;
+      })
+      .filter(Boolean).join("・");
+    $("partySummary").innerHTML =
+      `登録 <b>${parties.length}組 ${pax}名</b>${byKind ? `（${byKind}）` : ""}<br>` +
+      `<span class="${rest < 0 ? "party-neg" : ""}">残り一般旅客 ${rest}名` +
+      `<span class="ja">其餘經濟艙散客 ${rest}名${rest < 0 ? "（人數已超過總旅客數）" : ""}</span></span>`;
   }
 
   /** 楽天同期済みの電話・総室数キャッシュを静的データに反映 */
@@ -69,8 +213,7 @@
     return {
       totalPax: num("totalPax", 0),
       premiumPax: num("premiumPax", 0),
-      familyGroups: num("familyGroups", 0),
-      familyAvgSize: Math.max(1, num("familyAvgSize", 3)),
+      parties: parties.map(p => ({ kind: p.kind, size: p.size, seats: p.seats.trim() })),
       wheelchairPax: num("wheelchairPax", 0),
       crewCount: num("crewCount", 0),
       busCapacity: Math.max(1, num("busCapacity", 45)),
@@ -124,7 +267,8 @@
   function renderValidation(result, extra) {
     const box = $("validation");
     box.innerHTML = "";
-    const items = [...result.validation, ...(extra || [])];
+    // extraWarnings は入力そのものへの指摘（座席重複など）。楽天照会後の再描画でも消さない
+    const items = [...result.validation, ...(result.extraWarnings || []), ...(extra || [])];
     const order = { error: 0, warn: 1, info: 2 };
     items.sort((a, b) => order[a.severity] - order[b.severity]);
     for (const v of items) {
@@ -133,6 +277,18 @@
       div.innerHTML = bilingual(I18N.t(v.code, v.params));
       box.appendChild(div);
     }
+  }
+
+  /** 「3組/9名」＋ ツールチップに種別内訳（列幅が狭いので詳細はホバーへ逃がす） */
+  function partyCell(asg) {
+    const pt = asg.partyTotals;
+    if (!pt.groups) return "0";
+    const detail = Object.keys(KIND_LABEL)
+      .filter(k => asg.breakdown[k].groups)
+      .map(k => `${KIND_LABEL[k].ja}${asg.breakdown[k].groups}組${asg.breakdown[k].pax}名`)
+      .join(" / ");
+    const seats = asg.parties.filter(p => p.seats).map(p => p.seats).join(" ");
+    return `<span title="${detail}${seats ? `｜座席 ${seats}` : ""}">${pt.groups}組/${pt.pax}名</span>`;
   }
 
   function batchesText(asg) {
@@ -169,7 +325,7 @@
         <td class="hotel-name">${h.nameJa}<br><small>${h.driveMinutes}分・tier${h.tier}・全${h.totalRooms}室${h.roomsVerified ? "✓" : "※"}${h.crewDesignated ? "・乗務員指定" : ""}</small></td>
         <td>${b ? b.crew.pax : "—"}</td>
         <td>${b ? b.premium.pax : "—"}</td>
-        <td>${b ? `${b.family.groups}組/${b.family.pax}名` : "—"}</td>
+        <td>${asg ? partyCell(asg) : "—"}</td>
         <td>${b ? b.accessible.pax : "—"}</td>
         <td>${b ? b.economy.pax : "—"}</td>
         <td class="total-cell">${asg ? `${asg.totalPax}名 / ${asg.totalRooms}室` : "—"}</td>
@@ -396,10 +552,19 @@
       .sort((a, b) => a.hotel.driveMinutes - b.hotel.driveMinutes || b.totalPax - a.totalPax);
     const risks = result.validation.filter(v => v.severity !== "info");
     const u = result.unassigned;
-    const unplaced = u.crew + u.accessible + u.familyPax + u.economy;
-    const famPax = Allocator.buildFamilySizes(input.familyGroups, input.familyAvgSize)
-      .reduce((a, b) => a + b, 0);
+    const unplaced = u.crew + u.accessible + u.partyPax + u.economy;
+    const allParties = result.parties || [];
+    const partyPax = allParties.reduce((a, p) => a + p.size, 0);
+    const partyByKind = Object.keys(KIND_LABEL)
+      .map(k => {
+        const g = allParties.filter(p => p.kind === k);
+        return g.length ? `${KIND_LABEL[k].ja}${g.length}組${g.reduce((a, p) => a + p.size, 0)}名` : null;
+      })
+      .filter(Boolean).join(" / ") || "登録なし";
+    const orphans = allParties.filter(p => !p.hotelId);
     const sum = pool => rows.reduce((a, r) => a + r.breakdown[pool].pax, 0);
+    const sumParties = () => rows.reduce((a, r) => a + r.partyTotals.pax, 0);
+    const sumPartyGroups = () => rows.reduce((a, r) => a + r.partyTotals.groups, 0);
     const cost = result.cost;
     const costByHotel = {};
     if (cost) for (const c of cost.room.byHotel) costByHotel[c.hotelId] = c;
@@ -424,7 +589,7 @@
           <th>乗務員 / 組員</th><td>${input.crewCount}名</td>
         </tr>
         <tr>
-          <th>家族 / 家庭</th><td>${input.familyGroups}組 ${famPax}名</td>
+          <th>グループ / 分組</th><td>${allParties.length}組 ${partyPax}名<br><small>${partyByKind}</small></td>
           <th>車椅子 / 無障礙</th><td>${input.wheelchairPax}名</td>
           <th>バス / 巴士</th><td>${input.busCapacity}名 × ${input.busesAvailable}台</td>
         </tr>
@@ -453,6 +618,18 @@
             }).join("")
           : `<li class="risk-none">特記事項なし（全員手配済み）<br><span class="zh">無特別事項，全員安置完成</span></li>`}
       </ul>
+
+      ${orphans.length ? `
+      <h3>未手配グループ（個別対応）<span class="ja">未安置的組別｜需人工安排</span></h3>
+      <table class="ov-table">
+        <thead><tr><th>No.</th><th>種別</th><th>人数</th><th class="l">座席番号</th><th>必要室数</th><th class="l">対応記録 / 處理記錄</th></tr></thead>
+        <tbody>
+          ${orphans.map(p => `<tr>
+            <td>${p.no}</td><td>${KIND_LABEL[p.kind].ja}</td><td>${p.size}名</td>
+            <td class="l">${p.seats || "—"}</td><td>${p.rooms}室</td><td class="l"></td>
+          </tr>`).join("")}
+        </tbody>
+      </table>` : ""}
 
       ${cost ? `
       <h3>概算費用 <span class="ja">費用預估（円・税サービス料込）</span></h3>
@@ -495,7 +672,7 @@
         <thead>
           <tr>
             <th>No.</th><th class="l">ホテル / 飯店</th><th>車程</th><th>乗務員</th><th>C・F</th>
-            <th>家族</th><th>車椅子</th><th>一般</th><th>計（名/室）</th>
+            <th>グループ</th><th>車椅子</th><th>一般</th><th>計（名/室）</th>
             <th>宿泊費</th><th>バス</th><th>発車 T+分</th><th class="l">TEL</th>
           </tr>
         </thead>
@@ -508,7 +685,7 @@
               <td>${a.hotel.driveMinutes}分</td>
               <td>${b.crew.pax || ""}</td>
               <td>${b.premium.pax || ""}</td>
-              <td>${b.family.groups ? `${b.family.groups}組${b.family.pax}名` : ""}</td>
+              <td>${a.partyTotals.groups ? `${a.partyTotals.groups}組${a.partyTotals.pax}名` : ""}</td>
               <td>${b.accessible.pax || ""}</td>
               <td>${b.economy.pax || ""}</td>
               <td class="strong">${a.totalPax} / ${a.totalRooms}</td>
@@ -525,7 +702,7 @@
           <tr>
             <th></th><th class="l">合計 / 總計</th><th></th>
             <th>${sum("crew")}</th><th>${sum("premium")}</th>
-            <th>${rows.reduce((a, r) => a + r.breakdown.family.groups, 0)}組${sum("family")}名</th>
+            <th>${sumPartyGroups()}組${sumParties()}名</th>
             <th>${sum("accessible")}</th><th>${sum("economy")}</th>
             <th class="strong">${result.totals.pax} / ${result.totals.rooms}</th>
             <th class="money">${cost ? yen(cost.room.amount) : "—"}</th>
@@ -553,7 +730,15 @@
       div.innerHTML = `
         <h2>${asg.hotel.nameJa}</h2>
         <p>分配 ${asg.totalPax}名 / ${asg.totalRooms}室 ・ バス${asg.busCount}台 ・ 車程${asg.hotel.driveMinutes}分 ・ TEL ${asg.hotel.phone}</p>
-        <p>内訳：乗務員${asg.breakdown.crew.pax} / C・F ${asg.breakdown.premium.pax} / 家族${asg.breakdown.family.groups}組${asg.breakdown.family.pax}名 / 車椅子${asg.breakdown.accessible.pax} / 一般${asg.breakdown.economy.pax}</p>
+        <p>内訳：乗務員${asg.breakdown.crew.pax} / C・F ${asg.breakdown.premium.pax} / グループ${asg.partyTotals.groups}組${asg.partyTotals.pax}名 / 車椅子${asg.breakdown.accessible.pax} / 一般${asg.breakdown.economy.pax}</p>
+        ${asg.parties.length ? `
+        <h3 class="print-sub">グループ内訳（同一組は分割しない）<span class="ja">分組明細｜同組不拆散</span></h3>
+        <table class="print-parties">
+          <tr><th>No.</th><th>種別</th><th>人数</th><th>座席番号</th><th>室数</th><th>部屋番号</th><th>確認</th></tr>
+          ${asg.parties.map(p =>
+            `<tr><td>${p.no}</td><td>${KIND_LABEL[p.kind].ja}</td><td>${p.size}名</td>
+              <td class="seats">${p.seats || ""}</td><td>${p.rooms}室</td><td></td><td></td></tr>`).join("")}
+        </table>` : ""}
         <table class="print-batches">
           <tr><th>便</th><th>人数</th><th>発車</th><th>担当者</th><th>点呼</th></tr>
           ${asg.busBatches.map(b =>
@@ -649,6 +834,7 @@
     lastResult = result;
     lastResult.usedZone = zone;
     lastResult.input = input; // 印刷の概要ページと楽天照会後の再描画で再利用する
+    lastResult.extraWarnings = partyWarnings(input);
     lastResult.cost = Allocator.estimateCost(lastResult, readRates(lastResult));
     renderValidation(lastResult);
     renderTable(lastResult);
@@ -747,23 +933,104 @@
   function initForm() {
     for (const [id, val] of Object.entries({
       totalPax: DEFAULTS.totalPax, premiumPax: DEFAULTS.premiumPax,
-      familyGroups: DEFAULTS.familyGroups, familyAvgSize: DEFAULTS.familyAvgSize,
       wheelchairPax: DEFAULTS.wheelchairPax, crewCount: DEFAULTS.crewCount,
       busCapacity: DEFAULTS.busCapacity, busesAvailable: DEFAULTS.busesAvailable,
       busPerTrip: COST_DEFAULTS.busPerTrip, mealPerPax: COST_DEFAULTS.mealPerPax,
-      contingencyPct: COST_DEFAULTS.contingencyPct
+      contingencyPct: COST_DEFAULTS.contingencyPct,
+      quickCount: DEFAULTS.familyGroups, quickSize: DEFAULTS.familyAvgSize
     })) $(id).value = val;
     $("checkinDate").value = new Date().toISOString().slice(0, 10);
     $("appId").value = RakutenAPI.getAppId();
     // URL パラメータで上書き（シナリオのブックマークやテストに使用）
     const q = new URLSearchParams(location.search);
-    for (const id of ["totalPax", "premiumPax", "familyGroups", "familyAvgSize",
+    for (const id of ["totalPax", "premiumPax",
                       "wheelchairPax", "crewCount", "busCapacity", "busesAvailable", "rangeZone",
                       "busPerTrip", "mealPerPax", "contingencyPct"]) {
       if (q.has(id)) $(id).value = q.get(id);
     }
     if (q.has("autoExpand")) $("autoExpand").checked = q.get("autoExpand") !== "0";
+
+    // グループは前回の登録を復元する。未保存（初回）と URL 指定時だけ一括生成で埋める。
+    // 「全消去」した状態も保存済みなので、空のまま復元されて勝手に湧き戻らない。
+    parties = loadParties();
+    const seeded = q.has("familyGroups") || q.has("familyAvgSize");
+    if (seeded || localStorage.getItem(LS_PARTIES) === null) {
+      const n = q.has("familyGroups") ? Math.max(0, parseInt(q.get("familyGroups"), 10) || 0) : DEFAULTS.familyGroups;
+      const sz = q.has("familyAvgSize") ? Math.max(1, parseInt(q.get("familyAvgSize"), 10) || 1) : DEFAULTS.familyAvgSize;
+      parties = Array.from({ length: n }, () => newParty("family", sz, ""));
+      if (!seeded) saveParties(); // URL シナリオは一時的なものなので保存しない
+    }
+    renderParties();
     renderPicker(parseInt($("rangeZone").value, 10) || 1);
+  }
+
+  /** グループ登録の操作（追加・削除・一括生成）を配線する */
+  function initPartyUI() {
+    const recalc = () => { if (lastResult) calculate(); };
+    const box = $("partyList");
+
+    box.addEventListener("input", e => {
+      const row = e.target.closest(".party-row");
+      if (!row) return;
+      const p = parties[+row.dataset.i];
+      if (!p) return;
+      if (e.target.classList.contains("p-size")) {
+        p.size = Math.max(1, parseInt(e.target.value, 10) || 1);
+        p.auto = false; // 手入力を尊重（幼児など座席の無い同行者がいるケース）
+      } else if (e.target.classList.contains("p-seats")) {
+        p.seats = e.target.value;
+        const seats = expandSeats(p.seats);
+        row.classList.toggle("bad-seats", p.seats.trim() !== "" && seats === null);
+        if (p.auto && seats && seats.length) {
+          p.size = seats.length;
+          row.querySelector(".p-size").value = seats.length;
+        }
+      }
+      saveParties();
+      updatePartySummary();
+    });
+    box.addEventListener("change", e => {
+      const row = e.target.closest(".party-row");
+      if (!row) return;
+      const p = parties[+row.dataset.i];
+      if (p && e.target.classList.contains("p-kind")) { p.kind = e.target.value; saveParties(); }
+      recalc(); // 種別で1室あたり人数が変わるため、確定した時点で引き直す
+    });
+    box.addEventListener("click", e => {
+      if (!e.target.classList.contains("p-del")) return;
+      parties.splice(+e.target.closest(".party-row").dataset.i, 1);
+      saveParties();
+      renderParties();
+      recalc();
+    });
+
+    $("addParty").addEventListener("click", () => {
+      parties.push(newParty($("quickKind").value, 1, ""));
+      saveParties();
+      renderParties();
+      // 追加直後は座席番号を打つのが自然な流れなので、そこへ焦点を移す
+      const last = $("partyList").lastElementChild;
+      if (last) last.querySelector(".p-seats").focus();
+      recalc();
+    });
+    $("clearParties").addEventListener("click", () => {
+      if (parties.length && !confirm("登録グループをすべて削除します / 將刪除所有已登記的組別")) return;
+      parties = [];
+      saveParties();
+      renderParties();
+      recalc();
+    });
+    $("quickAdd").addEventListener("click", () => {
+      const n = Math.max(0, parseInt($("quickCount").value, 10) || 0);
+      const sz = Math.max(1, parseInt($("quickSize").value, 10) || 1);
+      for (let i = 0; i < n; i++) parties.push(newParty($("quickKind").value, sz, ""));
+      saveParties();
+      renderParties();
+      recalc();
+    });
+    for (const id of ["totalPax", "premiumPax", "wheelchairPax"]) {
+      $(id).addEventListener("input", updatePartySummary);
+    }
   }
 
   async function testApiKey() {
@@ -783,6 +1050,7 @@
   document.addEventListener("DOMContentLoaded", () => {
     applyFacts();
     initForm();
+    initPartyUI();
     const mapOk = MapView.init();
     MapView.update(initialMapItems()); // 計算前から全ホテルを表示（ポップアップで使用/除外可）
     setStatus(RakutenAPI.getAppId() ? "idle" : "offline",
@@ -875,9 +1143,10 @@
     if (new URLSearchParams(location.search).get("selftest") === "1") {
       calculate(); // selftest 時はデフォルト値で E2E スモークも実行
       const r = Allocator.runSelfTests();
+      const failures = [...r.failures, ...runSeatSelfTests()];
       const div = document.createElement("div");
-      div.className = `alert ${r.passed ? "alert-info" : "alert-error"}`;
-      div.textContent = `[selftest] ${r.passed ? "ALL PASS" : "FAILED: " + r.failures.join(" | ")}`;
+      div.className = `alert ${failures.length ? "alert-error" : "alert-info"}`;
+      div.textContent = `[selftest] ${failures.length ? "FAILED: " + failures.join(" | ") : "ALL PASS"}`;
       $("validation").appendChild(div);
     }
   });

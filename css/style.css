@@ -65,6 +65,38 @@ button.primary .ja { color: #f5c6c5; }
 .cost-hint .ja { display: block; }
 .cost-fields label { font-size: 0.9em; }
 
+/* グループ登録（家族・団体・個人） */
+.party-fields { border: 1px solid #e0e0e0; border-radius: 6px; padding: 8px 10px; margin: 0 0 12px; }
+.party-fields legend { font-size: 0.85em; font-weight: 600; padding: 0 4px; }
+.party-fields legend .ja { display: inline; margin-left: 4px; }
+/* 列の幅は全行で共通（見出し・入力行で同じ grid を使う） */
+.party-head, .party-row { display: grid; grid-template-columns: 56px 40px minmax(0, 1fr) 18px; gap: 4px; align-items: center; }
+.party-head { font-size: 0.68em; color: #5f6368; font-weight: 600; line-height: 1.2; margin-bottom: 3px; }
+.party-head .ja { display: inline; font-weight: normal; }
+#partyList { max-height: 240px; overflow-y: auto; margin-bottom: 6px; }
+.party-row { margin-bottom: 3px; }
+.form-panel .party-row select, .form-panel .party-row input {
+  width: 100%; margin: 0; padding: 3px 4px; font-size: 0.8em; border: 1px solid #dadce0; border-radius: 4px;
+}
+.party-row .p-seats { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+/* 解釈できない座席番号は人数を自動補完できないので、その旨を枠色で示す（入力は妨げない） */
+.party-row.bad-seats .p-seats { border-color: #e8a33d; background: #fff8ec; }
+.party-row .p-del { border: 0; background: none; color: #9aa0a6; cursor: pointer; padding: 0; font-size: 0.9em; }
+.party-row .p-del:hover { color: #d93025; }
+.party-tools { display: flex; gap: 6px; margin-bottom: 6px; }
+.party-tools button { flex: 1; padding: 4px; border: 1px solid #dadce0; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.78em; }
+.party-tools button:hover { background: #f1f3f4; }
+.party-tools .ja { display: inline; margin-left: 3px; color: #5f6368; }
+.party-quick { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; font-size: 0.75em; color: #5f6368; }
+.form-panel .party-quick select { width: 62px; margin: 0; padding: 3px 4px; font-size: 0.95em; }
+.form-panel .party-quick input { width: 40px; margin: 0; padding: 3px 4px; font-size: 0.95em; }
+.party-quick button { padding: 3px 8px; border: 1px solid #dadce0; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.95em; white-space: nowrap; }
+.party-quick button:hover { background: #f1f3f4; }
+.party-quick button .ja { display: inline; margin-left: 3px; }
+.party-summary { margin: 6px 0 0; font-size: 0.78em; color: #3c4043; line-height: 1.5; }
+.party-summary .ja { display: inline; margin-left: 4px; color: #5f6368; }
+.party-summary .party-neg { color: #d93025; font-weight: 600; }
+
 /* ホテル選択パネル */
 .hotel-picker { margin-top: 14px; border-top: 1px solid #e0e0e0; padding-top: 10px; }
 .hotel-picker h3 { margin: 0 0 8px; font-size: 0.95em; }
@@ -206,6 +238,14 @@ body.preview-sheets.overview-only .print-overview { display: block; }
 .print-sheet h2 { border-bottom: 2px solid #000; padding-bottom: 4px; }
 .print-batches { border-collapse: collapse; width: 100%; margin-top: 8mm; }
 .print-batches th, .print-batches td { border: 1px solid #000; padding: 6mm 4mm; text-align: center; }
+
+/* 乗車名簿のグループ内訳（フロントで部屋番号を書き込めるよう行高を確保する） */
+.print-sub { font-size: 11pt; margin: 8mm 0 2mm; }
+.print-sub .ja { display: inline; margin-left: 6px; font-size: 0.85em; color: #333; }
+.print-parties { border-collapse: collapse; width: 100%; font-size: 10pt; }
+.print-parties th, .print-parties td { border: 1px solid #000; padding: 3mm 2mm; text-align: center; }
+.print-parties th { background: #eaeaea; font-size: 9pt; }
+.print-parties .seats { font-family: ui-monospace, Menlo, monospace; text-align: left; }
 
 /* ---- 概要ページ（A4 縦 1 枚に収める前提の詰めた指定）---- */
 
