@@ -279,6 +279,8 @@
     const niceKm = [1, 2, 5, 10, 20, 50].find(k => k * 1000 * scale > IW / 5) || 50;
     const barPx = niceKm * 1000 * scale;
     const ax = px(0), ay = py(0);
+    // ターミナル同士は最短 1.1km。1km が 40px 未満だと重なって潰れるので単一表記に落とす
+    const showTerminals = scale > 0.04;
 
     // 枠内に入るものだけ描く（上の anchors 2 駅は必ず入る。それ以外は縮尺次第）
     const marks = lmAll
@@ -337,9 +339,20 @@
         ${marks.map(m =>
           `<text x="${m.x + 6}" y="${m.y + 3}" font-size="8" fill="#333"
                  stroke="#fff" stroke-width="2.5" paint-order="stroke">${m.name}</text>`).join("")}
+        ${showTerminals ? (() => {
+          // バスの実際の発車地点。T+分の起点でもあるので、読める縮尺なら 3 つとも出す
+          const ts = TERMINALS.map(t => ({
+            id: t.id, x: px((t.lng - c.lng) * kx), y: py(-(t.lat - c.lat) * 111320)
+          }));
+          const top = Math.min(...ts.map(t => t.y));
+          return ts.map(t =>
+            `<path d="M ${t.x} ${t.y - 6} L ${t.x + 5.5} ${t.y + 4} L ${t.x - 5.5} ${t.y + 4} Z" fill="#000"/>
+             <text x="${t.x + 8}" y="${t.y + 4}" font-size="8.5" font-weight="bold">${t.id}</text>`).join("") +
+            `<text x="${ax + 10}" y="${top - 10}" font-size="9.5" font-weight="bold">NRT 空港</text>`;
+        })() : `
         <path d="M ${ax - 11} ${ay} L ${ax + 11} ${ay} M ${ax} ${ay - 11} L ${ax} ${ay + 11}"
               stroke="#000" stroke-width="2.5"/>
-        <text x="${ax + 14}" y="${ay + 4}" font-size="11" font-weight="bold">NRT 空港</text>
+        <text x="${ax + 14}" y="${ay + 4}" font-size="11" font-weight="bold">NRT 空港</text>`}
         <g transform="translate(${W - PAD_R - barPx}, ${H - 14})">
           <rect x="-6" y="-16" width="${barPx + 12}" height="22" fill="#fff"/>
           <line x1="0" y1="0" x2="${barPx}" y2="0" stroke="#000" stroke-width="1.6"/>
@@ -354,11 +367,13 @@
         ${/* 凡例：白黒印刷では色が落ちるため、形（白抜きの円／塗りの四角）で区別できるようにしてある。
              ホテルが重なっても読めるよう白地を敷く */ ""}
         <g transform="translate(${PAD_L - 12}, ${H - 26})">
-          <rect x="-4" y="-11" width="${marks.length ? 268 : 215}" height="16" fill="#fff"/>
+          <rect x="-4" y="-11" width="${(marks.length ? 268 : 215) + (showTerminals ? 92 : 0)}" height="16" fill="#fff"/>
           <circle cx="6" cy="-3" r="6" fill="#fff" stroke="#000" stroke-width="1.4"/>
           <text x="17" y="0" font-size="8">割当ホテル（数字＝No.・円の大きさ＝人数）</text>
           ${marks.length ? `<rect x="215" y="-6.5" width="7" height="7" fill="#2a78d6"/>
           <text x="227" y="0" font-size="8">主要駅</text>` : ""}
+          ${showTerminals ? `<path d="M 274 -8 L 279 0 L 269 0 Z" fill="#000"/>
+          <text x="284" y="0" font-size="8">ターミナル（発車地点）</text>` : ""}
         </g>
         <g transform="translate(${PAD_L - 12}, ${H - 10})">
           <rect x="-4" y="-9" width="264" height="13" fill="#fff"/>
