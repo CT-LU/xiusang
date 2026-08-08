@@ -190,6 +190,15 @@
     }
   }
 
+  /** API エラーを原因別の案内に振り分ける（キー違い / ドメイン未登録 / それ以外） */
+  function apiErrorMsg(e) {
+    const msg = (e && e.message) || "";
+    if (e && e.kind === "origin") return I18N.t("api-origin-denied", { msg });
+    if (e && e.kind === "auth") return I18N.t("api-auth-error", { msg });
+    if (e && e.kind === "key") return I18N.t("api-key-invalid", { msg });
+    return I18N.t("api-fail", { msg });
+  }
+
   async function syncFacts() {
     if (!RakutenAPI.getAppId()) { setStatus("offline", I18N.t("api-no-key")); return; }
     try {
@@ -200,7 +209,7 @@
       setStatus("ok", I18N.t("sync-done", { n }));
       if (lastResult) calculate(); else refreshSelection();
     } catch (e) {
-      setStatus("fail", I18N.t("api-fail", { msg: e.message }));
+      setStatus("fail", apiErrorMsg(e));
     }
   }
 
@@ -794,7 +803,7 @@
       ]);
     } catch (e) {
       if (seq !== probeSeq) return;
-      setStatus("fail", I18N.t("api-fail", { msg: e.message }));
+      setStatus("fail", apiErrorMsg(e));
       renderValidation(result, [{ severity: "warn", code: "offline-mode", params: {} }]);
     }
   }
@@ -941,6 +950,7 @@
     })) $(id).value = val;
     $("checkinDate").value = new Date().toISOString().slice(0, 10);
     $("appId").value = RakutenAPI.getAppId();
+    $("accessKey").value = RakutenAPI.getAccessKey();
     // URL パラメータで上書き（シナリオのブックマークやテストに使用）
     const q = new URLSearchParams(location.search);
     for (const id of ["totalPax", "premiumPax",
@@ -1035,15 +1045,19 @@
 
   async function testApiKey() {
     RakutenAPI.setAppId($("appId").value);
+    RakutenAPI.setAccessKey($("accessKey").value);
     if (!RakutenAPI.getAppId()) { setStatus("offline", I18N.t("api-no-key")); return; }
     setStatus("probing", I18N.t("api-probing"));
     try {
       const ok = await RakutenAPI.testKey();
-      setStatus(ok ? "ok" : "fail", ok ? I18N.t("api-ok") : I18N.t("api-fail", { msg: "no data" }));
+      // 旧方式のまま通った場合は、新規キーなら accessKey が要る旨を添える
+      setStatus(ok ? "ok" : "fail",
+        ok ? (RakutenAPI.isV2() ? I18N.t("api-ok") : I18N.t("api-legacy-mode"))
+           : I18N.t("api-fail", { msg: "no data" }));
       // key 有効かつ未同期なら、電話・総室数を自動で公式データに更新
       if (ok && Object.keys(RakutenAPI.getFacts()).length === 0) await syncFacts();
     } catch (e) {
-      setStatus("fail", I18N.t("api-fail", { msg: e.message }));
+      setStatus("fail", apiErrorMsg(e));
     }
   }
 
