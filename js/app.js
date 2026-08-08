@@ -267,18 +267,37 @@
     const barPx = niceKm * 1000 * scale;
     const ax = px(0), ay = py(0);
 
+    // 参照点は枠内に入るものだけ描く（縮尺は割当ホテルで決まるため、圏外の駅は自然に落ちる）
+    const marks = LANDMARKS
+      .map(L => ({ name: L.nameJa, x: px((L.lng - c.lng) * kx), y: py(-(L.lat - c.lat) * 111320) }))
+      // 下限は PAD_B より内側にすると、ホテルが描かれる最南端（PAD_T+IH）にある駅まで切れてしまう
+      .filter(m => m.x > PAD_L - 6 && m.x < W - PAD_R + 30 && m.y > PAD_T - 6 && m.y < H - PAD_B + 4);
+
     return `
       <svg class="ov-map" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img">
         <rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" fill="none" stroke="#000" stroke-width="1"/>
+        ${/* 駅の記号は最背面（主体はホテルなので、重なれば白地の円が上に来る）。
+             駅名だけは最前面に白フチ付きで載せる（下記）ので、密集地でも読める */ ""}
+        ${marks.map(m =>
+          `<rect x="${m.x - 3.5}" y="${m.y - 3.5}" width="7" height="7" fill="#2a78d6"/>`).join("")}
         ${pts.map(p =>
           `<line x1="${ax}" y1="${ay}" x2="${px(p.mx)}" y2="${py(p.my)}"
                  stroke="#999" stroke-width="0.6" stroke-dasharray="3 3"/>`).join("")}
         ${(() => {
+          // 軒数が多いと空港近郊で円が密集する。円を小さくし人数ラベルは省く
+          // （番号は残るので一覧表で引ける。無理に載せるとラベルの列ができて図が読めなくなる）
+          const dense = pts.length > 12;
           const nodes = pts.map(p => ({
             no: p.no, pax: p.asg.totalPax,
             x: px(p.mx), y: py(p.my),
-            r: 4.5 + 9 * Math.sqrt(p.asg.totalPax / maxPax) // 面積で人数を表す
+            r: (dense ? 3.5 : 4.5) + (dense ? 5 : 9) * Math.sqrt(p.asg.totalPax / maxPax) // 面積で人数を表す
           }));
+          if (dense) {
+            return nodes.map(n =>
+              `<circle cx="${n.x}" cy="${n.y}" r="${n.r}" fill="#fff" stroke="#000" stroke-width="1.1"/>
+               <text x="${n.x}" y="${n.y + 2.6}" text-anchor="middle"
+                     font-size="7" font-weight="bold">${n.no}</text>`).join("");
+          }
           // 人数ラベルの簡易衝突回避：他のラベルにも他の円にも重ならない位置まで下げる
           const placed = [];
           for (const n of nodes) {
@@ -302,10 +321,14 @@
              <text x="${n.x}" y="${n.ly}" text-anchor="middle" font-size="7.5"
                    >${n.ly > n.y + n.r + 12 ? `${n.no}:` : ""}${n.pax}名</text>`).join("");
         })()}
+        ${marks.map(m =>
+          `<text x="${m.x + 6}" y="${m.y + 3}" font-size="8" fill="#333"
+                 stroke="#fff" stroke-width="2.5" paint-order="stroke">${m.name}</text>`).join("")}
         <path d="M ${ax - 11} ${ay} L ${ax + 11} ${ay} M ${ax} ${ay - 11} L ${ax} ${ay + 11}"
               stroke="#000" stroke-width="2.5"/>
         <text x="${ax + 14}" y="${ay + 4}" font-size="11" font-weight="bold">NRT 空港</text>
         <g transform="translate(${W - PAD_R - barPx}, ${H - 14})">
+          <rect x="-6" y="-16" width="${barPx + 12}" height="22" fill="#fff"/>
           <line x1="0" y1="0" x2="${barPx}" y2="0" stroke="#000" stroke-width="1.6"/>
           <line x1="0" y1="-4" x2="0" y2="4" stroke="#000" stroke-width="1.6"/>
           <line x1="${barPx}" y1="-4" x2="${barPx}" y2="4" stroke="#000" stroke-width="1.6"/>
@@ -315,9 +338,21 @@
           <path d="M 0 14 L 0 0 M 0 0 L -4 5 M 0 0 L 4 5" stroke="#000" stroke-width="1.4" fill="none"/>
           <text x="6" y="8" font-size="9">N</text>
         </g>
-        <text x="${PAD_L - 12}" y="${H - 10}" font-size="8.5" fill="#333">
-          ※ 空港の西約60km に東京都心 / 東京市中心在機場西方約60km
-        </text>
+        ${/* 凡例：白黒印刷では色が落ちるため、形（白抜きの円／塗りの四角）で区別できるようにしてある。
+             ホテルが重なっても読めるよう白地を敷く */ ""}
+        <g transform="translate(${PAD_L - 12}, ${H - 26})">
+          <rect x="-4" y="-11" width="${marks.length ? 268 : 215}" height="16" fill="#fff"/>
+          <circle cx="6" cy="-3" r="6" fill="#fff" stroke="#000" stroke-width="1.4"/>
+          <text x="17" y="0" font-size="8">割当ホテル（数字＝No.・円の大きさ＝人数）</text>
+          ${marks.length ? `<rect x="215" y="-6.5" width="7" height="7" fill="#2a78d6"/>
+          <text x="227" y="0" font-size="8">主要駅</text>` : ""}
+        </g>
+        <g transform="translate(${PAD_L - 12}, ${H - 10})">
+          <rect x="-4" y="-9" width="264" height="13" fill="#fff"/>
+          <text x="0" y="0" font-size="8.5" fill="#333">
+            ※ 空港の西約60km に東京都心 / 東京市中心在機場西方約60km
+          </text>
+        </g>
       </svg>`;
   }
 
