@@ -53,7 +53,9 @@ button.primary {
   background: #c5221f; color: #fff; font-size: 1.1em; font-weight: bold;
 }
 button.primary .ja { color: #f5c6c5; }
-#printBtn, #printOverviewBtn { width: 100%; padding: 8px; margin-bottom: 6px; border: 1px solid #dadce0; border-radius: 6px; background: #fff; cursor: pointer; }
+#previewBtn, #printBtn, #printOverviewBtn { width: 100%; padding: 8px; margin-bottom: 6px; border: 1px solid #dadce0; border-radius: 6px; background: #fff; cursor: pointer; }
+#previewBtn.active { background: #1565c0; color: #fff; border-color: #1565c0; }
+#previewBtn.active .ja { color: #cfe0f5; }
 
 /* 費用単価 */
 .cost-fields { border: 1px solid #e0e0e0; border-radius: 6px; padding: 8px 10px 2px; margin: 0 0 12px; }
@@ -174,22 +176,39 @@ button.primary .ja { color: #f5c6c5; }
   header { flex-direction: column; align-items: flex-start; }
 }
 
-/* ============ 印刷：1 枚目＝本社報告用概要、以降＝ホテルごとの乗車名簿 ============ */
+/* ============ 紙面（1 枚目＝本社報告用概要、以降＝ホテルごとの乗車名簿）============
+   印刷と画面プレビューで同じ体裁を使うため、紙面のスタイルは @media print の外に置く。
+   #printSheets 自体が既定で非表示なので、通常の画面表示には影響しない。 */
 #printSheets { display: none; }
+
+/* 画面プレビュー：紙を机に置いたように見せる（実際の改頁は印刷時のみ） */
+body.preview-sheets #printSheets {
+  display: block; background: #fff; max-width: 210mm; margin: 0 auto 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.25); padding-bottom: 10mm;
+}
+body.preview-sheets .print-sheet + .print-sheet { border-top: 2px dashed #c0c0c0; }
+body.preview-sheets.overview-only .print-sheet { display: none; }
+body.preview-sheets.overview-only .print-overview { display: block; }
+
 @media print {
   body { background: #fff; } /* 画面用の灰色背景を印刷に持ち込まない */
   body > header, body > main, .validation-band, .table-panel { display: none !important; }
-  #printSheets { display: block; }
-  .print-sheet { page-break-after: always; padding: 20mm 10mm 0; font-size: 12pt; }
-  .print-sheet h2 { border-bottom: 2px solid #000; padding-bottom: 4px; }
-  .print-batches { border-collapse: collapse; width: 100%; margin-top: 8mm; }
-  .print-batches th, .print-batches td { border: 1px solid #000; padding: 6mm 4mm; text-align: center; }
+  #printSheets { display: block; max-width: none; margin: 0; box-shadow: none; }
+  .print-sheet { page-break-after: always; }
+  .print-sheet + .print-sheet { border-top: 0; }
 
   /* 「概要のみ印刷」＝本社へは 1 枚だけ送る */
   body.overview-only .print-sheet { display: none; }
   body.overview-only .print-overview { display: block; page-break-after: auto; }
+}
 
-  /* ---- 概要ページ（A4 縦 1 枚に収める前提の詰めた指定）---- */
+.print-sheet { padding: 20mm 10mm 0; font-size: 12pt; color: #000; }
+.print-sheet h2 { border-bottom: 2px solid #000; padding-bottom: 4px; }
+.print-batches { border-collapse: collapse; width: 100%; margin-top: 8mm; }
+.print-batches th, .print-batches td { border: 1px solid #000; padding: 6mm 4mm; text-align: center; }
+
+/* ---- 概要ページ（A4 縦 1 枚に収める前提の詰めた指定）---- */
+
   .print-overview {
     padding: 12mm 10mm 0; font-size: 9.5pt;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
@@ -246,4 +265,3 @@ button.primary .ja { color: #f5c6c5; }
 
   .ov-note { font-size: 7.5pt; margin: 2mm 0 0; line-height: 1.35; }
   .ov-map { display: block; width: 100%; height: auto; max-height: 62mm; }
-}

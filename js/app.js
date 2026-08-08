@@ -808,9 +808,26 @@
     $("pickNone").addEventListener("click", () => setHotelsExcluded(allIds(), true));
 
     $("calcBtn").addEventListener("click", calculate);
-    $("printBtn").addEventListener("click", () => window.print());
+    // 未計算のまま印刷すると真っ白な紙が出てしまうので、その場で計算してから出す
+    const ensureSheets = () => { if (!lastResult) calculate(); };
+
+    // 紙面は画面上では非表示のため、印刷せずに確認する手段を用意する
+    $("previewBtn").addEventListener("click", () => {
+      ensureSheets();
+      const on = !document.body.classList.contains("preview-sheets");
+      document.body.classList.toggle("preview-sheets", on);
+      document.body.classList.remove("overview-only"); // プレビューは全ページ表示
+      $("previewBtn").classList.toggle("active", on);
+      $("previewBtn").innerHTML = on
+        ? 'プレビューを閉じる<span class="ja">關閉預覽</span>'
+        : '紙面をプレビュー<span class="ja">在畫面上預覽列印內容</span>';
+      if (on) $("printSheets").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    $("printBtn").addEventListener("click", () => { ensureSheets(); window.print(); });
     // 本社への報告は概要 1 枚で足りるため、名簿を省く印刷も用意する
     $("printOverviewBtn").addEventListener("click", () => {
+      ensureSheets();
       document.body.classList.add("overview-only");
       window.print();
     });
@@ -823,6 +840,9 @@
       $(id).addEventListener("change", () => { if (lastResult) calculate(); });
     }
     $("inputForm").addEventListener("submit", e => { e.preventDefault(); calculate(); });
+
+    // ?preview=1 で紙面プレビューを開いた状態にする（動作確認・共有用）
+    if (new URLSearchParams(location.search).get("preview") === "1") $("previewBtn").click();
 
     if (new URLSearchParams(location.search).get("selftest") === "1") {
       calculate(); // selftest 時はデフォルト値で E2E スモークも実行
